@@ -35,6 +35,18 @@
    :country  (xml1-> l :Country text)
    :uprn     (xml1-> l :Uprn text)})
 
+(defn parse-role [role]
+  {
+   :id        (xml1-> role (attr :id))
+   :isPrimary (let [v (xml1-> role (attr :primaryRole))] (if v (json/read-str v) false))
+   :status    (keyword (xml1-> role :Status (attr :value)))
+   :startDate (xml1-> role :Date :Start (attr :value))
+   :endDate   (xml1-> role :Date :End (attr :value))
+   })
+
+(defn parse-roles [roles]
+  (xml-> roles :Role parse-role))
+
 (defn parse-succ [succ]
   {:date        (xml1-> succ :Succ :Date :Start (attr :value))
    :type        (xml1-> succ :Succ :Type text)
@@ -49,23 +61,37 @@
      :successors   (get vals "Successor")
      }))
 
+(defn parse-rel [rel]
+  {
+   :id (xml-> rel (attr :id))
+   :startDate (xml1-> rel :Date :Start (attr :value))
+   :endDate (xml1-> rel :Date :End (attr :value))
+   :target (xml1-> rel :Target :OrgId parse-orgid)
+   })
+
+(defn parse-rels [rels]
+  (xml-> rels :Rel parse-rel))
+
 (defn parse-org
   [org]
-  (merge
-    {
-     :orgId          (xml1-> org :Organisation :OrgId parse-orgid)
-     :orgRecordClass (keyword (xml1-> org :Organisation (attr :orgRecordClass)))
-     :isReference    (let [v (xml1-> org :Organisation (attr :refOnly))] (if v (json/read-str v) false))
-     :name           (xml1-> org :Organisation :Name text)
-     :location       (xml1-> org :Organisation :GeoLoc :Location parse-location)
-     :status         (keyword (xml1-> org :Organisation :Status (attr :value)))
-     :successions    (xml1-> org :Organisation :Succs parse-succs)}
-    (when-let [op (xml1-> org :Organisation :Date :Type (attr= :value "Operational"))]
-      {:operational {:start (xml1-> (zip/up op) :Start (attr :value))
-                     :end   (xml1-> (zip/up op) :End (attr :value))}})
-    (when-let [op (xml1-> org :Organisation :Date :Type (attr= :value "Legal"))]
-      {:legal {:start (xml1-> (zip/up op) :Start (attr :value))
-               :end   (xml1-> (zip/up op) :End (attr :value))}})))
+  (let [roles (xml-> org :Organisation :Roles parse-roles)]
+    (merge
+      {:orgId          (xml1-> org :Organisation :OrgId parse-orgid)
+       :orgRecordClass (keyword (xml1-> org :Organisation (attr :orgRecordClass)))
+       :isReference    (let [v (xml1-> org :Organisation (attr :refOnly))] (if v (json/read-str v) false))
+       :name           (xml1-> org :Organisation :Name text)
+       :location       (xml1-> org :Organisation :GeoLoc :Location parse-location)
+       :status         (keyword (xml1-> org :Organisation :Status (attr :value)))
+       :successions    (xml1-> org :Organisation :Succs parse-succs)
+       :roles          roles
+       :primaryRole    (first (filter :isPrimary roles))
+       :relationships  (xml1-> org :Organisation :Rels parse-rels)}
+      (when-let [op (xml1-> org :Organisation :Date :Type (attr= :value "Operational"))]
+        {:operational {:start (xml1-> (zip/up op) :Start (attr :value))
+                       :end   (xml1-> (zip/up op) :End (attr :value))}})
+      (when-let [op (xml1-> org :Organisation :Date :Type (attr= :value "Legal"))]
+        {:legal {:start (xml1-> (zip/up op) :Start (attr :value))
+                 :end   (xml1-> (zip/up op) :End (attr :value))}}))))
 
 (defn process-organisations
   "Processes organisations from the TRUD ODS XML file, calling fn f with a batch of organisations,
