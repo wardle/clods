@@ -2,10 +2,9 @@
   (:require
     [clj-bom.core :as bom]
     [clojure.data.xml :as xml]
-    [clojure.data.zip.xml :refer [xml-> xml1-> attr= attr text]]
+    [clojure.data.zip.xml :as zx :refer [xml-> xml1-> attr= attr text]]
     [clojure.zip :as zip]
     [next.jdbc :as jdbc]
-    [next.jdbc.sql :as sql]
     [clojure.data.json :as json]
     [clojure.string :as str]))
 
@@ -36,20 +35,34 @@
    :country  (xml1-> l :Country text)
    :uprn     (xml1-> l :Uprn text)})
 
+(defn parse-succ [succ]
+  {:date        (xml1-> succ :Succ :Date :Start (attr :value))
+   :type        (xml1-> succ :Succ :Type text)
+   :target      (xml1-> succ :Succ :Target :OrgId parse-orgid)
+   :primaryRole (xml1-> succ :Succ :Target :PrimaryRoleId (attr :id))})
+
+(defn parse-succs [succs]
+  (let [vals (->> (xml-> succs :Succ parse-succ)
+                  (group-by :type))]
+    {
+     :predecessors (get vals "Predecessor")
+     :successors   (get vals "Successor")
+     }))
+
 (defn parse-org
   [org]
   (merge
     {
      :orgId          (xml1-> org :Organisation :OrgId parse-orgid)
-     :orgRecordClass (xml1-> org :Organisation (attr :orgRecordClass))
+     :orgRecordClass (keyword (xml1-> org :Organisation (attr :orgRecordClass)))
+     :isReference    (let [v (xml1-> org :Organisation (attr :refOnly))] (if v (json/read-str v) false))
      :name           (xml1-> org :Organisation :Name text)
      :location       (xml1-> org :Organisation :GeoLoc :Location parse-location)
-     :status  (keyword (xml1-> org :Organisation :Status (attr :value)))
-     }
+     :status         (keyword (xml1-> org :Organisation :Status (attr :value)))
+     :successions    (xml1-> org :Organisation :Succs parse-succs)}
     (when-let [op (xml1-> org :Organisation :Date :Type (attr= :value "Operational"))]
       {:operational {:start (xml1-> (zip/up op) :Start (attr :value))
-                     :end   (xml1-> (zip/up op) :End (attr :value))
-                     }})
+                     :end   (xml1-> (zip/up op) :End (attr :value))}})
     (when-let [op (xml1-> org :Organisation :Date :Type (attr= :value "Legal"))]
       {:legal {:start (xml1-> (zip/up op) :Start (attr :value))
                :end   (xml1-> (zip/up op) :End (attr :value))}})))
@@ -66,7 +79,7 @@
          (filter #(= :Organisation (:tag %)))
          (map zip/xml-zip)
          (map parse-org)
-         (partition-all 100)
+         (partition-all 10000)
          (run! f))))
 
 (defn manifest
@@ -99,9 +112,9 @@
 (defn import-code-systems
   [in ds]
   (let [cs (code-systems in)
-        v (map #(vector (:oid %) (:name %))  cs)]
+        v (map #(vector (:oid %) (:name %)) cs)]
     (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into codesystems (oid,name) values (?,?)"])]
+                ps (jdbc/prepare con ["insert into codesystems (oid,name) values (?,?) on conflict (oid) do update set name = EXCLUDED.name"])]
       (next.jdbc.prepare/execute-batch! ps v))))
 
 (defn import-codes
@@ -109,15 +122,18 @@
   (let [codes (all-codes in)
         v (map #(vector (:id %) (:displayName %) (:codeSystem %)) codes)]
     (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into codes (id,display_name,code_system) values (?,?,?)"])]
+                ps (jdbc/prepare con ["insert into codes (id,display_name,code_system) values (?,?,?) on conflict (id) do update set display_name = EXCLUDED.display_name, code_system = EXCLUDED.code_system"])]
       (next.jdbc.prepare/execute-batch! ps v))))
 
 (defn import-orgs
   "Import a batch of organisations"
   [ds orgs]
-  (let [v (map #(vector (get-in % [:name]) (json/write-str %)) orgs)]
+  (let [v (map #(vector
+                  (str (get-in % [:orgId :root]) "|" (get-in % [:orgId :extension]))
+                  (:name %)
+                  (json/write-str %)) orgs)]
     (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into organisations (name,data) values (?,?::jsonb)"])]
+                ps (jdbc/prepare con ["insert into organisations (id, name,data) values (?,?,?::jsonb) on conflict (id) do update set name = EXCLUDED.name, data = EXCLUDED.data"])]
       (next.jdbc.prepare/execute-batch! ps v))))
 
 (defn import-organisations

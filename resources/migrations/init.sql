@@ -10,7 +10,7 @@ create table codes (
 );
 
 create table organisations (
-  id serial,
+  id varchar(255) primary key,
   name text not null,
   data jsonb not null
 );
