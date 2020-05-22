@@ -1,12 +1,10 @@
-(ns com.eldrix.clods.import
+(ns com.eldrix.clods.parse
   (:require
     [clj-bom.core :as bom]
     [clojure.data.xml :as xml]
     [clojure.data.zip.xml :as zx :refer [xml-> xml1-> attr= attr text]]
     [clojure.zip :as zip]
-    [next.jdbc :as jdbc]
-    [clojure.data.json :as json]
-    [clojure.string :as str]))
+    [clojure.data.json :as json]))
 
 (defn parse-concept
   [code-system code]
@@ -33,7 +31,7 @@
    :county   (xml1-> l :County text)
    :postcode (xml1-> l :PostCode text)
    :country  (xml1-> l :Country text)
-   :uprn     (xml1-> l :Uprn text)})
+   :uprn     (xml1-> l :UPRN text)})
 
 (defn parse-role [role]
   {
@@ -63,10 +61,10 @@
 
 (defn parse-rel [rel]
   {
-   :id (xml-> rel (attr :id))
+   :id        (xml1-> rel (attr :id))
    :startDate (xml1-> rel :Date :Start (attr :value))
-   :endDate (xml1-> rel :Date :End (attr :value))
-   :target (xml1-> rel :Target :OrgId parse-orgid)
+   :endDate   (xml1-> rel :Date :End (attr :value))
+   :target    (xml1-> rel :Target :OrgId parse-orgid)
    })
 
 (defn parse-rels [rels]
@@ -115,10 +113,11 @@
     (let [data (xml/parse rdr :skip-whitespace true)
           v (first (filter #(= :Manifest (:tag %)) (:content data)))
           root (zip/xml-zip v)]
-      {:version         (xml1-> root :Manifest :Version (attr :value))
-       :publicationType (xml1-> root :Manifest :PublicationType (attr :value))
-       :publicationDate (xml1-> root :Manifest :PublicationDate (attr :value))
-       :recordCount     (Integer/parseInt (xml1-> root :Manifest :RecordCount (attr :value)))
+      {:version            (xml1-> root :Manifest :Version (attr :value))
+       :publicationType    (xml1-> root :Manifest :PublicationType (attr :value))
+       :publicationDate    (xml1-> root :Manifest :PublicationDate (attr :value))
+       :contentDescription (xml1-> root :Manifest :ContentDescription (attr :value))
+       :recordCount        (Integer/parseInt (xml1-> root :Manifest :RecordCount (attr :value)))
        })))
 
 (defn code-systems
@@ -135,45 +134,7 @@
   [in]
   (mapcat :codes (code-systems in)))
 
-(defn import-code-systems
-  [in ds]
-  (let [cs (code-systems in)
-        v (map #(vector (:oid %) (:name %)) cs)]
-    (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into codesystems (oid,name) values (?,?) on conflict (oid) do update set name = EXCLUDED.name"])]
-      (next.jdbc.prepare/execute-batch! ps v))))
-
-(defn import-codes
-  [in ds]
-  (let [codes (all-codes in)
-        v (map #(vector (:id %) (:displayName %) (:codeSystem %)) codes)]
-    (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into codes (id,display_name,code_system) values (?,?,?) on conflict (id) do update set display_name = EXCLUDED.display_name, code_system = EXCLUDED.code_system"])]
-      (next.jdbc.prepare/execute-batch! ps v))))
-
-(defn import-orgs
-  "Import a batch of organisations"
-  [ds orgs]
-  (let [v (map #(vector
-                  (str (get-in % [:orgId :root]) "|" (get-in % [:orgId :extension]))
-                  (:name %)
-                  (json/write-str %)) orgs)]
-    (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into organisations (id, name,data) values (?,?,?::jsonb) on conflict (id) do update set name = EXCLUDED.name, data = EXCLUDED.data"])]
-      (next.jdbc.prepare/execute-batch! ps v))))
-
-(defn import-organisations
-  [in ds]
-  (process-organisations in (partial import-orgs ds)))
-
-(defn import-all
-  "Imports organisational data from an ODS XML file"
-  [in ds]
-  (import-code-systems in ds)
-  (import-codes in ds)
-  (import-organisations in ds))
-
-(defn org-by-code
+(defn- org-by-code
   "Returns organisations defined by ODS code (e.g. RWMBV for UHW, Cardiff) as a demonstration of parsing the ODS XML.
   This is an unoptimised search through the ODS XML file and is simply a private demonstration, rather than intended
   for operational use"
@@ -191,23 +152,8 @@
   (def filename "/Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Full_20200427.xml")
   (def filename "/Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Archive_20200427.xml")
   (manifest filename)
-  (xml1-> (zip/xml-zip (manifest filename)) :Manifest :Version (attr :value))
-  (xml1-> (zip/xml-zip (manifest filename)) :Manifest :FileCreationDateTime (attr :value))
   (:version (manifest filename))
   (code-systems filename)
-
-  (def db {:dbtype "postgresql" :dbname "ods"})
-  (def ds (jdbc/get-datasource db))
-  (import-code-systems filename ds)
-  (import-codes filename ds)
-  (import-organisations filename ds)
-
-  ;; these take a while as org-by-code uses a sequential scan, albeit with multiple cores
-  (org-by-code filename "RWMBV")                            ;; University Hospital Wales
-  (org-by-code filename "W93036")                           ;; Castle Gate surgery
-
-  (org-by-code filename "RRF12")                            ;; first one in the file
-  (org-by-code filename "5E115")                            ;; a weird one that isn't parsed correctly
 
   ;; these are the individual steps used by metadata and import-organisations
   (def rdr (-> filename

@@ -15,4 +15,10 @@ create table organisations (
   data jsonb not null
 );
 
+create table general_practitioners (
+  id varchar(16) primary key,
+  name text not null,
+  organisation varchar(255) references organisations (id),
+  data jsonb not null
+);
 
