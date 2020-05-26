@@ -23,15 +23,17 @@
     [clj-http.client :as http]
     [clojure.data.json :as json]
     [clojure.data.csv :as csv]
-    [clojure.java.io :as io])
+    [clojure.java.io :as io]
+    [clojure.tools.logging :as log])
   (:import
     (java.io File InputStreamReader)
     (java.util.zip ZipFile)))
 
+(def supported-ods-xml-version "1-0-0")
 
 (def files
 
-  "A list of ODS files and their download locations for data not in the master XML file"
+  "A list of general practitioner ODS files and their download locations for data not in the master XML file"
   {:egpcur {:name        "egpcur"
             :description "General practitioners"
             :url         "https://files.digital.nhs.uk/assets/ods/current/egpcur.zip"}
@@ -46,30 +48,30 @@ file to generate a globally unique reference"
 
 (def n27-field-format
   "The standard ODS 27-field format headings"
-  [:organisation-code
+  [:organisationCode
    :name
-   :national-grouping
-   :high-level-health-geography
+   :nationalGrouping
+   :highLevelHealthGeography
    :address1
    :address2
    :address3
    :address4
    :address5
    :postcode
-   :open-date
-   :close-date
-   :status-code
+   :openDate
+   :closeDate
+   :statusCode
    :subtype
    :parent
-   :join-parent-date
-   :left-parent-date
+   :joinParentDate
+   :leftParentDate
    :telephone
    :nil
    :nil
    :nil
-   :amended-record
+   :amendedRecord
    :nil
-   :current-org
+   :currentOrg
    :nil
    :nil
    :nil
@@ -77,6 +79,7 @@ file to generate a globally unique reference"
 
 
 (defn download [url target]
+  "Download from the url to the target, which will be coerced as per clojure.io/output-stream"
   (let [request (http/get url {:as :stream})
         buffer-size (* 1024 10)]
     (with-open [input (:body request)
@@ -107,14 +110,21 @@ file to generate a globally unique reference"
 
 
 (defn import-general-practitioners [t ds]
+  (log/info "downloading and importing data from" (get-in files [t :name]) "-" (get-in files [t :description]))
   (with-open [con (jdbc/get-connection ds)
               ps (jdbc/prepare con ["insert into general_practitioners (id, name, organisation, data) values (?,?,?,?::jsonb) on conflict (id) do update set name = EXCLUDED.name, organisation = EXCLUDED.organisation, data = EXCLUDED.data"])]
     (download-ods-file
       t (fn [line]
           (try
-            (next.jdbc.prepare/set-parameters ps [(:organisation-code line) (:name line) (str general-practitioner-org-oid "|" (:parent line)) (json/write-str line)])
+            (next.jdbc.prepare/set-parameters ps [(:organisationCode line) (:name line) (str general-practitioner-org-oid "|" (:parent line)) (json/write-str line)])
             (jdbc/execute! ps)
-            (catch Exception e (when-not (:left-parent-date line) (println "Failed to import: " line ":" e))))))))
+            (catch Exception e (when-not (:leftParentDate line) (log/error e "failed to import: " line ))))))))
+
+
+(defn import-all-general-practitioners
+  [ds]
+  (import-general-practitioners :egpcur ds)                 ;; current general practitioners
+  (import-general-practitioners :egparc ds))                ;; archived general practitioners
 
 (defn import-code-systems
   [in ds]
@@ -150,10 +160,13 @@ file to generate a globally unique reference"
 (defn import-all
   "Imports organisational data from an ODS XML file"
   [in ds]
-  (println "Manifest: " (parse/manifest in))
-  (import-code-systems in ds)
-  (import-codes in ds)
-  (import-organisations in ds))
+  (let [mft (parse/manifest in)]
+    (log/info "Manifest: " mft)
+    (if (= (:version mft) supported-ods-xml-version)
+      (do (import-code-systems in ds)
+          (import-codes in ds)
+          (import-organisations in ds))
+      (log/fatal "unsupported ODS XML version. expected" supported-ods-xml-version "got:" (:version mft)))))
 
 (comment
 

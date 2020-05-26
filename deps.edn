@@ -1,14 +1,23 @@
-{:deps
- {clj-time                  {:mvn/version "0.14.2"}
-  org.clojure/data.xml      {:mvn/version "0.2.0-alpha6"}
-  org.clojure/data.zip      {:mvn/version "1.0.0"}
-  camel-snake-kebab         {:mvn/version "0.4.1"}
-  migratus                  {:mvn/version "1.2.8"}
-  org.postgresql/postgresql {:mvn/version "42.2.12.jre7"}
-  seancorfield/next.jdbc    {:mvn/version "1.0.424"}
-  org.clojure/data.json     {:mvn/version "1.0.0"}
-  log4j/log4j               {:mvn/version "1.2.17"}
-  clj-http                  {:mvn/version "3.10.1"}
-  clj-bom                   {:mvn/version "0.1.2"}
-  org.clojure/data.csv      {:mvn/version "1.0.0"}
-  cli-matic                 {:git/url "https://github.com/l3nz/cli-matic.git" :sha "ab04be8819bbfbbb36670067b08461c683b32abe"}}}
+{:paths   ["src"]
+ :deps
+          {clj-time                       {:mvn/version "0.14.2"}
+           org.clojure/data.xml           {:mvn/version "0.2.0-alpha6"}
+           org.clojure/data.zip           {:mvn/version "1.0.0"}
+           camel-snake-kebab              {:mvn/version "0.4.1"}
+           migratus                       {:mvn/version "1.2.8"}
+           org.postgresql/postgresql      {:mvn/version "42.2.12.jre7"}
+           seancorfield/next.jdbc         {:mvn/version "1.0.424"}
+           org.clojure/data.json          {:mvn/version "1.0.0"}
+           clj-http                       {:mvn/version "3.10.1"}
+           clj-bom                        {:mvn/version "0.1.2"}
+           org.clojure/data.csv           {:mvn/version "1.0.0"}
+           org.clojure/tools.logging      {:mvn/version "1.1.0"}
+           ch.qos.logback/logback-classic {:mvn/version "1.2.3" :exclusions [org.slf4j/slf4j-api]}
+           io.pedestal/pedestal.service   {:mvn/version "0.5.8"}
+           io.pedestal/pedestal.jetty     {:mvn/version "0.5.8"}
+           cli-matic                      {:git/url "https://github.com/l3nz/cli-matic.git" :sha "ab04be8819bbfbbb36670067b08461c683b32abe"}}
+ :aliases {
+           :uberdeps {;; run using clj -A:uberdeps - this does not yet generate a runnable jar however.
+                      :deps      {uberdeps {:mvn/version "0.1.10"}}
+                      :main-opts ["-m" "uberdeps.uberjar"]
+                      }}}

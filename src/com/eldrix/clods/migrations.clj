@@ -12,18 +12,18 @@
                   :subprotocol "postgresql"
                   :subname     "ods"}})
 
-(defn init []
-  (migratus/init config))
-
-(defn migrate []
-  (migratus/migrate config))
-
 (comment
   ;initialize the database using the 'init.sql' script
   (migratus/init config)
 
+  ;list pending migrations
+  (migratus/pending-list config)
+
   ;apply pending migrations
   (migratus/migrate config)
+
+  ;; create a new migration with the specified name
+  (migratus/create config "create-postcodes")
 
   ;rollback the last migration applied
   (migratus/rollback config)
