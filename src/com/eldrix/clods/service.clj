@@ -20,8 +20,8 @@
                                                             (str root "|" id)])))]
                  {:status  200
                   :headers {"Content-Type" "application/json"}
-                  :body    (:org (first (jdbc/execute! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
-                                                           (str root "|" id)])))}
+                  :body    (:org (jdbc/execute-one! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
+                                                           (str root "|" id)]))}
                  {:status 404})))
              (GET "/search" []
                {:status 500
