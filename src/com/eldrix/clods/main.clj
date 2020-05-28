@@ -30,7 +30,7 @@
 
 (defn do-serve [{:keys [p db]}]
   (log/info "Starting server on port" p " using database " db)
-  (log/fatal "Not implemented")
+  (service/start {:port p})
   )
 
 

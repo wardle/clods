@@ -8,7 +8,7 @@
     [ring.middleware.params :as params]
     [next.jdbc :as jdbc]))
 
-; TODO: add connection pooling
+; TODO: add connection pooling and runtime configuration
 (def db {:dbtype "postgresql" :dbname "ods"})
 (def ds (jdbc/get-datasource db))
 
@@ -39,10 +39,10 @@
 (def app
   (wrap-defaults app-routes site-defaults))
 
-(defn start []
-  (jetty/run-jetty #'app {:port 3000, :join? false})
+(defn start [{:keys [port is-development]}]
+  (jetty/run-jetty #'app {:port (or port 3000) :join? (not is-development)})
   (println "server running in port 3000"))
 
 (comment
-  (start)
+  (start {:port 3000 :is-development true})
   )
