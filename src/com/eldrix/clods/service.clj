@@ -14,14 +14,15 @@
 
 
 (defroutes app-routes
-           (GET "/:root/:id" [root id]
-             (if-let [org (:org (first (jdbc/execute! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
+           (context "/v1" []
+             (GET "/:root/:id" [root id]
+               (if-let [org (:org (first (jdbc/execute! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
                                                             (str root "|" id)])))]
-               {:status 200
-                :headers {"Content-Type" "application/json"}
-                :body  (:org (first (jdbc/execute! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
-                                                       (str root "|" id)])))}
-               {:status 404}))
+                 {:status  200
+                  :headers {"Content-Type" "application/json"}
+                  :body    (:org (first (jdbc/execute! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
+                                                           (str root "|" id)])))}
+                 {:status 404})))
            (route/not-found "Not Found"))
 
 (def app
@@ -30,10 +31,10 @@
 
 (defn handler [request]
   (println request)
-  {:status 200
+  {:status  200
    :headers {"Content-Type" "application/json"}
-   :body  (:org (first (jdbc/execute! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
-                            "2.16.840.1.113883.2.1.3.2.4.18.48|X26"])))})
+   :body    (:org (first (jdbc/execute! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
+                                            "2.16.840.1.113883.2.1.3.2.4.18.48|X26"])))})
 
 
 
@@ -46,6 +47,6 @@
   (start)
 
   (into [] (map str)
-   (jdbc/plan ds ["SELECT data#>>'{}' as org FROM organisations WHERE id = ?"
-                                        "2.16.840.1.113883.2.1.3.2.4.18.48|X26"]))
+        (jdbc/plan ds ["SELECT data#>>'{}' as org FROM organisations WHERE id = ?"
+                       "2.16.840.1.113883.2.1.3.2.4.18.48|X26"]))
   )
