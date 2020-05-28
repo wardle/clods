@@ -15,6 +15,7 @@
 
 (defroutes app-routes
            (context "/v1" []
+             (context "/oid" []
              (GET "/:root/:id" [root id]
                (if-let [org (:org (first (jdbc/execute! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
                                                             (str root "|" id)])))]
@@ -23,6 +24,9 @@
                   :body    (:org (first (jdbc/execute! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
                                                            (str root "|" id)])))}
                  {:status 404})))
+             (GET "/search" []
+               {:status 500
+                :body "Not implemented"}))
            (route/not-found "Not Found"))
 
 (def app
