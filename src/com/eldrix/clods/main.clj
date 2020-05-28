@@ -1,51 +1,37 @@
 (ns com.eldrix.clods.main
   (:gen-class)
-  (:require [com.eldrix.clods.importer :as importer]
+  (:require [com.eldrix.clods.ods :as ods]
             [com.eldrix.clods.service :as service]
+            [com.eldrix.clods.postcode :as postcode]
             [clojure.tools.cli :refer [parse-opts]]
             [clojure.tools.logging :as log]
             [cli-matic.core :refer [run-cmd]]
-            [io.pedestal.http :as http]
             [next.jdbc :as jdbc]))
 
-;; This is an adapted service map, that can be started and stopped
-;; From the REPL you can call http/start and http/stop on this service
-(defonce runnable-service (http/create-server service/service))
 
-(defn run-dev-server
-  [& args]
-  (log/info "\nCreating [DEV] server...")
-  (-> service/service ;; start with production configuration
-      (merge {:env :dev
-              ;; do not block thread that starts web server
-              ::http/join? false
-              ;; Routes can be a function that resolve routes,
-              ;;  we can use this to set the routes to be reloadable
-              ::http/routes #(deref #'service/routes)
-              ;; all origins are allowed in dev mode
-              ::http/allowed-origins {:creds true :allowed-origins (constantly true)}})
-      ;; Wire up interceptor chains
-      http/default-interceptors
-      http/dev-interceptors
-      http/create-server
-      http/start))
-
+(defn do-import-postcodes [{db :db args :_arguments}]
+  (log/info "Importing postcodes to " db)
+  (let [ds (jdbc/get-datasource db)]
+    (doseq [f args]
+      (println "Importing postcodes from:" f "...")
+      (postcode/import-postcodes f ds))))
 
 (defn do-import-gps [{db :db}]
   (println "Importing to" db)
   (let [ds (jdbc/get-datasource db)]
-    (importer/import-all-general-practitioners ds)))
+    (ods/import-all-general-practitioners ds)))
 
 (defn do-import-ods-xml [{db :db args :_arguments}]
-  (log/info "Importing ODS-XML  to" db)
+  (log/info "Importing ODS-XML to" db)
   (let [ds (jdbc/get-datasource db)]
     (doseq [f args]
-      (println "Importing ODS-XML " f "...")
-      (importer/import-all f ds))))
+      (println "Importing ODS-XML from:" f "...")
+      (ods/import-all-xml f ds))))
 
 (defn do-serve [{:keys [p db]}]
-  (log/info "Starting server on port" p " using database " db )
-  (http/start runnable-service))
+  (log/info "Starting server on port" p " using database " db)
+  (log/fatal "Not implemented")
+  )
 
 
 (def CONFIGURATION
@@ -69,6 +55,10 @@
                   :description "Downloads and imports/updates GP data. Always import ODS XML data before this step"
                   :opts        []
                   :runs        do-import-gps}
+                 {:command     "import-postcodes"
+                  :description "Imports an NHSPD file"
+                  :opts        []
+                  :runs        do-import-postcodes}
                  ]})
 
 (defn -main [& args]
