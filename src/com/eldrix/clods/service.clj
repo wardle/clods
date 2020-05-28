@@ -23,8 +23,7 @@
                                                (str root "|" id)])))]
     {:status  200
      :headers {"Content-Type" "application/json"}
-     :body    (:org (jdbc/execute-one! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
-                                           (str root "|" id)]))}
+     :body    org}
     {:status 404}))
 
 
@@ -32,7 +31,7 @@
            (GET "/v1/oid/:root/:id" [root id] (get-by-oid root id))
            (GET "/v1/resolve/:id" [id system]
              (get-by-oid (get system->oid system) id))
-           (GET "/v1/oid/search" []
+           (GET "/v1/search" []
              {:status 500
               :body   "Not implemented"})
            (route/not-found "Not Found"))
