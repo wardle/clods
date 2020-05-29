@@ -36,12 +36,12 @@
   "Normalizes a postcode into uppercase 8-characters with left-aligned outward code and right-aligned inward code
   returning the original if normalization not possible"
   [pc]
-  (let [codes (s/split pc #"\s+")] (if (= 2 (count codes)) (apply #(format "%-5s %3s" %1 %2) codes) pc)))
+  (s/upper-case (let [codes (s/split pc #"\s+")] (if (= 2 (count codes)) (apply #(format "%-5s %3s" %1 %2) codes) pc))))
 
 (defn egif
   "Normalizes a postcode into uppercase with outward code and inward codes separated by a single space"
   [pc]
-  (s/replace pc #"\s+" " "))
+  (s/upper-case (s/replace pc #"\s+" " ")))
 
 (defn import-postcodes
   "Import/update postcode data (NHSPD e.g. nhg20feb.csv) to the datasource (ds) specified"
