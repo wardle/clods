@@ -115,10 +115,11 @@ file to generate a globally unique reference"
   {
    :id        (xml1-> role (attr :id))
    :isPrimary (let [v (xml1-> role (attr :primaryRole))] (if v (json/read-str v) false))
-   :status    (keyword (xml1-> role :Status (attr :value)))
+   :active    (= "Active" (xml1-> role :Status (attr :value)))
    :startDate (xml1-> role :Date :Start (attr :value))
    :endDate   (xml1-> role :Date :End (attr :value))
-   })
+   }
+  )
 
 (defn parse-roles [roles]
   (xml-> roles :Role parse-role))
@@ -134,6 +135,7 @@ file to generate a globally unique reference"
    :id        (xml1-> rel (attr :id))
    :startDate (xml1-> rel :Date :Start (attr :value))
    :endDate   (xml1-> rel :Date :End (attr :value))
+   :active    (= "Active" (xml1-> rel :Status (attr :value)))
    :target    (xml1-> rel :Target :OrgId parse-orgid)
    })
 
@@ -151,7 +153,7 @@ file to generate a globally unique reference"
        :isReference    (let [v (xml1-> org :Organisation (attr :refOnly))] (if v (json/read-str v) false))
        :name           (xml1-> org :Organisation :Name text)
        :location       (xml1-> org :Organisation :GeoLoc :Location parse-location)
-       :status         (keyword (xml1-> org :Organisation :Status (attr :value)))
+       :active         (= "Active" (xml1-> org :Organisation :Status (attr :value)))
        :roles          roles
        :contacts       (xml-> org :Organisation :Contacts parse-contacts)
        :primaryRole    (first (filter :isPrimary roles))
