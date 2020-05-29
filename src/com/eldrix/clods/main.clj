@@ -47,7 +47,7 @@
                   :runs        do-serve}
 
                  {:command     "import-ods-xml"
-                  :description "Imports ODS XML data files. Always import 'full' files before 'archive' files"
+                  :description "Imports ODS XML data files."
                   :opts        []
                   :runs        do-import-ods-xml}
 

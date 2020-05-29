@@ -90,6 +90,13 @@ file to generate a globally unique reference"
      :oid   oid
      :codes (xml-> codesystem :concept (partial parse-concept oid))}))
 
+(defn parse-contact [contact]
+  {:type  (xml1-> contact (attr :type))
+   :value (xml1-> contact (attr :value))})
+
+(defn parse-contacts [contacts]
+  (xml-> contacts :Contact parse-contact))
+
 (defn parse-orgid [orgid]
   {:root                   (xml1-> orgid (attr :root))
    :assigningAuthorityName (xml1-> orgid (attr :assigningAuthorityName))
@@ -117,18 +124,10 @@ file to generate a globally unique reference"
   (xml-> roles :Role parse-role))
 
 (defn parse-succ [succ]
-  {:date        (xml1-> succ :Succ :Date :Start (attr :value))
-   :type        (xml1-> succ :Succ :Type text)
-   :target      (xml1-> succ :Succ :Target :OrgId parse-orgid)
-   :primaryRole (xml1-> succ :Succ :Target :PrimaryRoleId (attr :id))})
-
-(defn parse-succs [succs]
-  (let [vals (->> (xml-> succs :Succ parse-succ)
-                  (group-by :type))]
-    {
-     :predecessors (get vals "Predecessor")
-     :successors   (get vals "Successor")
-     }))
+  {:date        (xml1-> succ :Date :Start (attr :value))
+   :type        (xml1-> succ :Type text)
+   :target      (xml1-> succ :Target :OrgId parse-orgid)
+   :primaryRole (xml1-> succ :Target :PrimaryRoleId (attr :id))})
 
 (defn parse-rel [rel]
   {
@@ -143,7 +142,9 @@ file to generate a globally unique reference"
 
 (defn parse-org
   [org]
-  (let [roles (xml-> org :Organisation :Roles parse-roles)]
+  (let [roles (xml-> org :Organisation :Roles parse-roles)
+        succession (->> (xml-> org :Organisation :Succs :Succ parse-succ)
+                        (group-by :type))]
     (merge
       {:orgId          (xml1-> org :Organisation :OrgId parse-orgid)
        :orgRecordClass (keyword (xml1-> org :Organisation (attr :orgRecordClass)))
@@ -151,10 +152,14 @@ file to generate a globally unique reference"
        :name           (xml1-> org :Organisation :Name text)
        :location       (xml1-> org :Organisation :GeoLoc :Location parse-location)
        :status         (keyword (xml1-> org :Organisation :Status (attr :value)))
-       :successions    (xml1-> org :Organisation :Succs parse-succs)
        :roles          roles
+       :contacts       (xml-> org :Organisation :Contacts parse-contacts)
        :primaryRole    (first (filter :isPrimary roles))
-       :relationships  (xml1-> org :Organisation :Rels parse-rels)}
+       :relationships  (xml-> org :Organisation :Rels parse-rels)}
+      (when-let [predecessors (get succession "Predecessor")]
+        {:predecessors predecessors})
+      (when-let [successors (get succession "Successor")]
+        {:successors successors})
       (when-let [op (xml1-> org :Organisation :Date :Type (attr= :value "Operational"))]
         {:operational {:start (xml1-> (zip/up op) :Start (attr :value))
                        :end   (xml1-> (zip/up op) :End (attr :value))}})
@@ -174,6 +179,7 @@ file to generate a globally unique reference"
          (filter #(= :Organisation (:tag %)))
          (map zip/xml-zip)
          (map parse-org)
+         (filter #(not (:isReference %)))
          (partition-all 10000)
          (run! f))))
 
@@ -333,8 +339,21 @@ file to generate a globally unique reference"
   (def orgs (first (filter #(= :Organisations (:tag %)) (:content data))))
   ;; get one organisation
   (def org (first (take 5 (filter #(= :Organisation (:tag %)) (:content orgs)))))
+
   (parse-org (zip/xml-zip org))
   (json/write-str (parse-org (zip/xml-zip org)))
+
+  (def org
+    (->> (:content data)
+         (filter #(= :Organisations (:tag %)))
+         (first)
+         (:content)
+         (filter #(= :Organisation (:tag %)))
+         (map zip/xml-zip)
+         (map parse-org)
+         (filter #(= "8FL59" (get-in % [:orgId :extension])))
+         (first)))
+
 
   ;; get code systems
   (def code-systems (first (filter #(= :CodeSystems (:tag %)) (:content data))))
@@ -358,8 +377,6 @@ file to generate a globally unique reference"
   (import-organisations f-archive ds)
   (import-general-practitioners :egpcur ds)
   (import-general-practitioners :egparc ds)
-
-
   )
 
 
