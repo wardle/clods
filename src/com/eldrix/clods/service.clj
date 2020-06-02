@@ -79,23 +79,31 @@
   (->> (:relationships org)
        (filter :active)
        (map #(hash-map
-               :subject (merge (:orgId org) {:name (:name org)})
+               :subject {:system (str "urn:oid:" (get-in org [:orgId :root]))
+                         :value  (get-in org [:orgId :extension])
+                         :name   (:name org)}
                :predicate (let [code (fetch-code (:id %))]
-                            {:root      (:codes/code_system code)
-                             :extension (:id %)
-                             :name      (:codes/display_name code)})
-               :object (merge (:target %) {:name (:name (fetch-org (get-in % [:target :extension])))})))))
+                            {:system (str "urn:oid:" (:codes/code_system code))
+                             :value  (:id %)
+                             :name   (:codes/display_name code)})
+               :object {:system (str "urn:oid:" (get-in % [:target :root]))
+                        :value  (get-in % [:target :extension])
+                        :name   (:name (fetch-org (get-in % [:target :extension])))}))))
 
 (defn org-succession [org k]
   "Turn the successors and predecessors into a list of identifier triples"
   (->> (k org)
        (map #(hash-map
-               :subject (merge (:orgId org) {:name (:name org)})
-               :predicate {:root      namespace-ods-succession
-                           :extension (get {"Predecessor" "resultedFrom"
-                                            "Successor"   "resultingOrganization"} (:type %))
-                           :date (:date %)}
-               :object (merge (:target %) {:name (:name (fetch-org (get-in % [:target :extension])))})))))
+               :subject {:system (str "urn:oid:" (get-in org [:orgId :root]))
+                         :value  (get-in org [:orgId :extension])
+                         :name   (:name org)}
+               :predicate {:system namespace-ods-succession
+                           :value  (get {"Predecessor" "resultedFrom"
+                                         "Successor"   "resultingOrganization"} (:type %))
+                           :date   (:date %)}
+               :object {:system (str "urn:oid:" (get-in % [:target :root]))
+                        :value  (get-in % [:target :extension])
+                        :name   (:name (fetch-org (get-in % [:target :extension])))}))))
 
 (defn get-organisation-properties [id]
   (if-let [org (fetch-org id)]
