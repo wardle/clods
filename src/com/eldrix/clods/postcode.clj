@@ -46,7 +46,7 @@
 (defn import-postcodes
   "Import/update postcode data (NHSPD e.g. nhg20feb.csv) to the datasource (ds) specified"
   [f ds]
-  (let [btchs (->> f
+  (let [batches (->> f
                   (io/input-stream)
                   (InputStreamReader.)
                   (csv/read-csv)
@@ -55,7 +55,7 @@
                   (partition-all 1000))]
     (with-open [con (jdbc/get-connection ds)
                 ps (jdbc/prepare con ["insert into postcodes (PCD2,PCDS,DATA) values (?,?,?::jsonb) on conflict (PCD2) do update set PCDS = EXCLUDED.PCDS, DATA=EXCLUDED.DATA"])]
-      (run! #(next.jdbc.prepare/execute-batch! ps %) btchs))))
+      (run! #(next.jdbc.prepare/execute-batch! ps %) batches))))
 
 (comment
 
