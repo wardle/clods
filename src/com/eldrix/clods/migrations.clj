@@ -23,7 +23,7 @@
   (migratus/migrate config)
 
   ;; create a new migration with the specified name
-  (migratus/create config "create-postcodes")
+  (migratus/create config "add-active-column")
 
   ;rollback the last migration applied
   (migratus/rollback config)

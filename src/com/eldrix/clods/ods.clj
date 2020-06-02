@@ -244,9 +244,10 @@ file to generate a globally unique reference"
   (let [v (map #(vector
                   (str (get-in % [:orgId :root]) "|" (get-in % [:orgId :extension]))
                   (:name %)
+                  (:active %)
                   (json/write-str %)) orgs)]
     (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into organisations (id, name,data) values (?,?,?::jsonb) on conflict (id) do update set name = EXCLUDED.name, data = EXCLUDED.data"])]
+                ps (jdbc/prepare con ["insert into organisations (id,name,active,data) values (?,?,?,?::jsonb) on conflict (id) do update set name = EXCLUDED.name, active= EXCLUDED.active, data = EXCLUDED.data"])]
       (next.jdbc.prepare/execute-batch! ps v))))
 
 (defn import-organisations

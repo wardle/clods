@@ -7,6 +7,7 @@
                  [compojure "1.6.1"]
                  [ring/ring-jetty-adapter "1.8.1"]
                  [ring/ring-defaults "0.3.2"]
+                 [ring/ring-json "0.5.0"]
                  [clj-time "0.14.2"]
                  [org.clojure/data.xml "0.2.0-alpha6"]
                  [org.clojure/data.zip "1.0.0"]
