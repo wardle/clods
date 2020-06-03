@@ -72,6 +72,20 @@
      (flatten (->> (:successors org)
                    (map #(active-successors (get-in % [:target :root]) (get-in % [:target :extension]))))))))
 
+(defn all-predecessors
+  "Returns the names of all of the predecessor names of the specified
+  organisation"
+  ([root id]
+   (all-predecessors (fetch-org root id)))
+  ([org]
+   (concat
+     (->> (:predecessors org)
+          (map :target)
+          (map :extension)
+          (map fetch-org)
+          (map #(assoc (normalize-id (:orgId %)) :name (:name %))))
+     (flatten (->> (:predecessors org)
+                   (map #(all-predecessors (get-in % [:target :root]) (get-in % [:target :extension]))))))))
 
 (defn org-identifiers
   "Returns a normalised list of organisation identifiers.
@@ -95,7 +109,7 @@
 
 (defn org-relationships
   "Turn the list of active relationships in an organisation into a list of
-  identifier triples"
+  normalized identifier triples"
   [org]
   (->> (:relationships org)
        (filter :active)
@@ -200,11 +214,15 @@
              (http-resolve system id))
 
            ;; provide properties as 'triples' (subject, predicate, object); we can only do this for orgs/sites
-           (GET "/v1/properties/:id" [system id]
-             (if (or (= system namespace-ods-organisation) (= system namespace-ods-site))
-               (if-let [org (fetch-org id)]
+           (GET "/v1/resolve/:id/properties" [system id]
+               (if-let [org (fetch-org (get uri->oid system) id)]
                  (organisation-properties org)
-                 (route/not-found "Not found"))
+                 (route/not-found "Not found")))
+
+           ;; get a list of all of the names / identifiers of predecessor organisations
+           (GET "/v1/resolve/:id/predecessors" [system id]
+             (if-let [uri (get uri->oid system)]
+               (all-predecessors uri id)
                (route/not-found "Not found")))
 
            ;; resolve a postcode
