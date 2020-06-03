@@ -44,7 +44,7 @@
   (s/upper-case (s/replace pc #"\s+" " ")))
 
 (defn import-postcodes
-  "Import/update postcode data (NHSPD e.g. nhg20feb.csv) to the datasource (ds) specified"
+  "Import/update postcode data (NHSPD e.g. nhg20feb.csv) to the datasource `ds` specified"
   [f ds]
   (let [batches (->> f
                   (io/input-stream)

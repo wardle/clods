@@ -279,15 +279,17 @@ file to generate a globally unique reference"
               (.write output buffer 0 size)
               (recur))))))))
 
-(defn file-from-zip [zipfile filename f]
-  "Reads from the zipfile specified, extracts the file 'filename' and passes each line to your function 'f'"
+(defn file-from-zip
+  "Reads from the zipfile specified, extracts the file `filename` and passes each line to your function `f`"
+  [zipfile filename f]
   (with-open [zipfile (new ZipFile zipfile)]
     (when-let [entry (.getEntry zipfile filename)]
       (let [reader (InputStreamReader. (.getInputStream zipfile entry))]
         (run! f (csv/read-csv reader))))))
 
-(defn download-ods-file [t f]
-  "Downloads the specified ODS filetype 't' (e.g. :egpcur) calling func 'f' with a map representing each item"
+(defn download-ods-file
+  "Downloads the specified ODS filetype `t` (e.g. :egpcur) calling func `f` with a map representing each item"
+  [t f]
   (let [filetype (t files)
         temp (File/createTempFile (:name filetype) ".zip")]
     (download (:url filetype) temp)
