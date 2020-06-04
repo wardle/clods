@@ -7,6 +7,9 @@
     [ring.middleware.json :as middleware]
     [ring.middleware.defaults :refer [wrap-defaults site-defaults]]
     [ring.middleware.params :as params]
+    [com.wsscode.pathom.core :as p]
+    [com.wsscode.pathom.connect :as pc]
+    [clojure.core.async :refer [<!!]]
     [next.jdbc :as jdbc]
     [com.eldrix.clods.postcode :as postcode]))
 
@@ -165,6 +168,31 @@
                namespace-ods-relationship                   "2.16.840.1.113883.2.1.3.2.4.17.508"
                "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.508" "2.16.840.1.113883.2.1.3.2.4.17.508"
                })
+
+
+(pc/defresolver org-resolver
+                [{:keys [database] :as env} {:keys [organisation/id]}]
+                {::pc/input #{:organisation/id}
+                 ::pc/output [:organisation/name]}
+                (let [org (fetch-org id)]
+                  {:organisation/name        (:name org)}))
+
+(def registry
+  [org-resolver])
+
+(def parser
+  (p/parser
+    {::p/env     {::p/reader               [p/map-reader
+                                            pc/reader2
+                                            pc/open-ident-reader
+                                            p/env-placeholder-reader]
+                  ::p/placeholder-prefixes #{">"}}
+     ::p/mutate  pc/mutate
+     ::p/plugins [(pc/connect-plugin {::pc/register registry})
+                  p/error-handler-plugin
+                  p/trace-plugin]}))
+
+
 
 (defn http-get-org [uri id]
   (if-let [org (fetch-org (get uri->oid uri) id)]

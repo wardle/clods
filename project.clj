@@ -12,6 +12,7 @@
                  [org.clojure/data.xml "0.2.0-alpha6"]
                  [org.clojure/data.zip "1.0.0"]
                  [camel-snake-kebab "0.4.1"]
+                 [com.wsscode/pathom "2.3.0-alpha9"]
                  [migratus "1.2.8"]
                  [org.postgresql/postgresql "42.2.12.jre7"]
                  [seancorfield/next.jdbc "1.0.445"]
