@@ -169,6 +169,16 @@
                namespace-ods-relationship                   "2.16.840.1.113883.2.1.3.2.4.17.508"
                "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.508" "2.16.840.1.113883.2.1.3.2.4.17.508"})
 
+
+(pc/defresolver postcode-resolver
+  "Resolves a postal code \":postalcode/id\""
+  [{:keys [database] :as env} {:keys [:postalcode/id]}]
+  {::pc/input  #{:postalcode/id}
+   ::pc/output [:organization/id]}
+  (if-let [pc (fetch-postcode id)]
+    {:organization/id (str namespace-ods-organisation "#" (:PCT pc))}
+    nil))
+
 (pc/defresolver org-resolver
   "Resolves an organisation identifier `:organization/id` made up of uri of
   the form uri#id e.g. \"https://fhir.nhs.uk/Id/ods-organization-code#7A4\""
@@ -192,7 +202,7 @@
                                             (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))
 
 (def registry
-  [org-resolver])
+  [postcode-resolver org-resolver])
 
 (def parser
   (p/parser
@@ -296,4 +306,6 @@
                [:organization/name :organization/active :organization/type
                 {:organization/subOrganizationOf [:organization/identifiers :organization/name]}]}])
 
+  (fetch-postcode "CF14 2HB")
+  (parser {} [{[:postalcode/id "CF14 2HB"] [:organization/name]}])
   )
