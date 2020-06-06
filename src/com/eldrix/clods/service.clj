@@ -174,11 +174,14 @@
   "Resolves a postal code \":postalcode/id\""
   [{:keys [database] :as env} {:keys [:postalcode/id]}]
   {::pc/input  #{:postalcode/id}
-   ::pc/output [:organization/id :OSGB36/easting :OSGB36/northing]}
+   ::pc/output [:organization/id
+                :OSGB36/easting :OSGB36/northing
+                :LSOA11/id]}
   (if-let [pc (fetch-postcode id)]
     {:organization/id (str namespace-ods-organisation "#" (:PCT pc))
      :OSGB36/easting (:OSEAST1M pc)
-     :OSGB36/northing (:OSNRTH1M pc)}
+     :OSGB36/northing (:OSNRTH1M pc)
+     :LSOA11/id (:LSOA11 pc)}
     nil))
 
 (pc/defresolver org-resolver
