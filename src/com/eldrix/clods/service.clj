@@ -174,9 +174,11 @@
   "Resolves a postal code \":postalcode/id\""
   [{:keys [database] :as env} {:keys [:postalcode/id]}]
   {::pc/input  #{:postalcode/id}
-   ::pc/output [:organization/id]}
+   ::pc/output [:organization/id :OSGB36/easting :OSGB36/northing]}
   (if-let [pc (fetch-postcode id)]
-    {:organization/id (str namespace-ods-organisation "#" (:PCT pc))}
+    {:organization/id (str namespace-ods-organisation "#" (:PCT pc))
+     :OSGB36/easting (:OSEAST1M pc)
+     :OSGB36/northing (:OSNRTH1M pc)}
     nil))
 
 (pc/defresolver org-resolver
@@ -306,6 +308,6 @@
                [:organization/name :organization/active :organization/type
                 {:organization/subOrganizationOf [:organization/identifiers :organization/name]}]}])
 
-  (fetch-postcode "CF14 2HB")
-  (parser {} [{[:postalcode/id "CF14 2HB"] [:organization/name]}])
+  (parser {} [{[:postalcode/id "CF14 2HB"] [:postalcode/id :organization/name]}])
+  (parser {} [{[:postalcode/id "CF14 2HB"] [:OSGB36/easting :OSGB36/northing]}])
   )
