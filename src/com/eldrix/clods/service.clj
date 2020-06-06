@@ -10,6 +10,7 @@
     [com.wsscode.pathom.core :as p]
     [com.wsscode.pathom.connect :as pc]
     [clojure.core.async :refer [<!!]]
+    [clojure.string :as str]
     [next.jdbc :as jdbc]
     [com.eldrix.clods.postcode :as postcode]))
 
@@ -22,31 +23,32 @@
 (def namespace-ods-site "https://fhir.nhs.uk/Id/ods-site-code")
 (def namespace-os-postcode "http://data.ordnancesurvey.co.uk/ontology/postcode")
 
-;; these namespace definitions are not published and I've made them up (!) ... TODO: use "standards" when we make them
+;; these namespace definitions are not published and I've made them up (!) ...
+;; TODO: use "standards" when we make them
 (def namespace-ods-relationship "https://fhir.nhs.uk/Id/ods-relationship")
 (def namespace-ods-succession "https://fhir.nhs.uk/Id/ods-succession")
-
 
 (defn fetch-org
   "Fetches an organisation by `root` and `identifier` from the data store"
   ([id] (fetch-org "2.16.840.1.113883.2.1.3.2.4.18.48" id))
   ([root id]
-   (when-let [org (:org (jdbc/execute-one! ds ["SELECT data::varchar as org FROM organisations WHERE id = ?"
-                                               (str root "|" id)]))]
+   (when-let [org (:org (jdbc/execute-one! ds
+                                           ["SELECT data::varchar as org FROM organisations WHERE id = ?"
+                                            (str root "|" id)]))]
      (json/read-str org :key-fn keyword))))
 
 (defn fetch-code [id]
-  (jdbc/execute-one! ds ["SELECT id, display_name, code_system FROM codes where id = ?" id]))
+  (jdbc/execute-one! ds
+                     ["SELECT id, display_name, code_system FROM codes where id = ?" id]))
 
 (defn fetch-postcode [pcode]
-  (when-let [pc (:pc (jdbc/execute-one! ds ["SELECT data::varchar as pc FROM postcodes where pcd2 = ?"
-                                            (postcode/egif pcode)]))]
+  (when-let [pc (:pc (jdbc/execute-one! ds
+                                        ["SELECT data::varchar as pc FROM postcodes where pcd2 = ?"
+                                         (postcode/egif pcode)]))]
     (json/read-str pc :key-fn keyword)))
 
-(def orgRecordClass->namespace {
-                                "RC1" namespace-ods-organisation
-                                "RC2" namespace-ods-site
-                                })
+(def orgRecordClass->namespace {"RC1" namespace-ods-organisation
+                                "RC2" namespace-ods-site})
 
 (defn normalize-id
   "Normalizes an ODS identifier oid/extension to a URI/value with the URI
@@ -62,7 +64,6 @@
    turn `root/extension` into `system/value' where system is a URI"
   [v]
   (map #(update % :target normalize-id) v))
-
 
 (defn active-successors
   "Returns the active successor(s) of the given organisation, or the given
@@ -101,14 +102,16 @@
   "Normalizes an organisation, turning legacy ODS OID/extension identifiers into
   namespaced URI/value identifiers"
   [org]
-  (let [org-type (get orgRecordClass->namespace (:orgRecordClass org))]
-    (-> org
-        (dissoc :orgId)
-        (assoc :identifiers (org-identifiers org)
-               "@type" org-type)
-        (update :relationships normalize-targets)
-        (update :predecessors normalize-targets)
-        (update :successors normalize-targets))))
+  (if (nil? org)
+    nil
+    (let [org-type (get orgRecordClass->namespace (:orgRecordClass org))]
+      (-> org
+          (dissoc :orgId)
+          (assoc :identifiers (org-identifiers org)
+                 "@type" org-type)
+          (update :relationships normalize-targets)
+          (update :predecessors normalize-targets)
+          (update :successors normalize-targets)))))
 
 (defn org-relationships
   "Turn the list of active relationships in an organisation into a list of
@@ -144,7 +147,6 @@
                         :value  (get-in % [:target :extension])
                         :name   (:name (fetch-org (get-in % [:target :extension])))}))))
 
-
 (defn organisation-properties
   "Returns a list of organisation properties in triples :subject -> :predicate -> object"
   [org]
@@ -160,22 +162,34 @@
      :body    pc}
     {:status 404}))
 
-(def uri->oid {
-               "2.16.840.1.113883.2.1.3.2.4.18.48"          "2.16.840.1.113883.2.1.3.2.4.18.48"
+(def uri->oid {"2.16.840.1.113883.2.1.3.2.4.18.48"          "2.16.840.1.113883.2.1.3.2.4.18.48"
                namespace-ods-organisation                   "2.16.840.1.113883.2.1.3.2.4.18.48"
                "urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48"  "2.16.840.1.113883.2.1.3.2.4.18.48"
                namespace-ods-site                           "2.16.840.1.113883.2.1.3.2.4.18.48"
                namespace-ods-relationship                   "2.16.840.1.113883.2.1.3.2.4.17.508"
-               "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.508" "2.16.840.1.113883.2.1.3.2.4.17.508"
-               })
-
+               "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.508" "2.16.840.1.113883.2.1.3.2.4.17.508"})
 
 (pc/defresolver org-resolver
-                [{:keys [database] :as env} {:keys [organisation/id]}]
-                {::pc/input #{:organisation/id}
-                 ::pc/output [:organisation/name]}
-                (let [org (fetch-org id)]
-                  {:organisation/name        (:name org)}))
+  "Resolves an organisation identifier `:organization/id` made up of uri of
+  the form uri#id e.g. \"https://fhir.nhs.uk/Id/ods-organization-code#7A4\""
+  [{:keys [database] :as env} {:keys [:organization/id]}]
+  {::pc/input  #{:organization/id}
+   ::pc/output [:organization/identifiers
+                :organization/name
+                :organization/type
+                :organization/active
+                :organization/subOrganizationOf]}
+  (let [[uri value] (str/split id #"#")]
+    (when-let [norg (normalize-org (fetch-org (get uri->oid uri) value))]
+      {:organization/identifiers       (->> (:identifiers norg)
+                                            (map #(str (:system %) "#" (:value %))))
+       :organization/name              (:name norg)
+       :organization/type              (get norg "@type")
+       :organization/active            (:active norg)
+       :organization/subOrganizationOf (->> (:relationships norg)
+                                            (filter (fn [rel] (= (:id rel) "RE6")))
+                                            (map :target)
+                                            (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))
 
 (def registry
   [org-resolver])
@@ -191,8 +205,6 @@
      ::p/plugins [(pc/connect-plugin {::pc/register registry})
                   p/error-handler-plugin
                   p/trace-plugin]}))
-
-
 
 (defn http-get-org [uri id]
   (if-let [org (fetch-org (get uri->oid uri) id)]
@@ -214,17 +226,14 @@
                :codeSystem  (:codes/code_system result)}}
     {:status 404}))
 
-
-(def resolvers {
-                namespace-ods-organisation                   http-get-org
+(def resolvers {namespace-ods-organisation                   http-get-org
                 namespace-ods-site                           http-get-org
                 namespace-ods-relationship                   http-get-code
                 namespace-os-postcode                        http-get-postcode
                 "urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48"  http-get-org
                 "2.16.840.1.113883.2.1.3.2.4.18.48"          http-get-org
                 "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.508" http-get-code
-                "2.16.840.1.113883.2.1.3.2.4.17.508"         http-get-code
-                })
+                "2.16.840.1.113883.2.1.3.2.4.17.508"         http-get-code})
 
 (defn http-resolve [system value]
   (if-let [resolver (get resolvers system)]
@@ -243,9 +252,9 @@
 
            ;; provide properties as 'triples' (subject, predicate, object); we can only do this for orgs/sites
            (GET "/v1/resolve/:id/properties" [system id]
-               (if-let [org (fetch-org (get uri->oid system) id)]
-                 (organisation-properties org)
-                 (route/not-found "Not found")))
+             (if-let [org (fetch-org (get uri->oid system) id)]
+               (organisation-properties org)
+               (route/not-found "Not found")))
 
            ;; get a list of all of the names / identifiers of predecessor organisations
            (GET "/v1/resolve/:id/predecessors" [system id]
@@ -275,5 +284,16 @@
   (start {:port 3000 :is-development true})
 
   (def org (fetch-org "7A4"))
+
+  (println (:name org))
+  (def org (fetch-org "7A4BV"))
+  (def norg (normalize-org org))
+  ;; let's try out pathom
+  (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
+               [:organization/name :organization/subOrganizationOf]}])
+
+  (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
+               [:organization/name :organization/active :organization/type
+                {:organization/subOrganizationOf [:organization/identifiers :organization/name]}]}])
 
   )
