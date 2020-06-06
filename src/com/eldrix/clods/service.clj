@@ -28,6 +28,21 @@
 (def namespace-ods-relationship "https://fhir.nhs.uk/Id/ods-relationship")
 (def namespace-ods-succession "https://fhir.nhs.uk/Id/ods-succession")
 
+
+
+;; map clojure/java type namespaces (packages) into URIs
+(def namespace->uri {
+                     "org.w3.www.2001.01.rdf-schema"        "http://www.w3.org/2000/01/rdf-schema#"
+                     "org.w3.www.2001.XMLSchema"            "http://www.w3.org/2001/XMLSchema#"
+                     "org.w3.www.2002.07.owl"               "http://www.w3.org/2002/07/owl#"
+                     "org.w3.www.ns.prov"                   "http://www.w3.org/ns/prov#"
+                     "uk.nhs.fhir.id.ods-organization-code" "https://fhir.nhs.uk/Id/ods-organization-code#"
+                     "uk.nhs.fhir.id.ods-site-code"         "https://fhir.nhs.uk/Id/ods-site-code"})
+
+
+
+
+
 (defn fetch-org
   "Fetches an organisation by `root` and `identifier` from the data store"
   ([id] (fetch-org "2.16.840.1.113883.2.1.3.2.4.18.48" id))
@@ -179,35 +194,63 @@
                 :LSOA11/id]}
   (if-let [pc (fetch-postcode id)]
     {:organization/id (str namespace-ods-organisation "#" (:PCT pc))
-     :OSGB36/easting (:OSEAST1M pc)
+     :OSGB36/easting  (:OSEAST1M pc)
      :OSGB36/northing (:OSNRTH1M pc)
-     :LSOA11/id (:LSOA11 pc)}
+     :LSOA11/id       (:LSOA11 pc)}
     nil))
 
 (pc/defresolver org-resolver
   "Resolves an organisation identifier `:organization/id` made up of uri of
-  the form uri#id e.g. \"https://fhir.nhs.uk/Id/ods-organization-code#7A4\""
+  the form uri#id e.g. \"https://fhir.nhs.uk/Id/ods-organization-code#7A4\".
+
+  A number of different URIs are supported, including OIDS and the FHIR URIs.
+
+  The main idea here is to provide a more abstract and general purpose set of
+  properties and relationships for an organisation that that providing by the UK ODS.
+  The plan is that the vocabulary should use a standardised vocabulary such as
+  that from [https://www.w3.org/TR/vocab-org/](https://www.w3.org/TR/vocab-org/)"
   [{:keys [database] :as env} {:keys [:organization/id]}]
   {::pc/input  #{:organization/id}
-   ::pc/output [:organization/identifiers
-                :organization/name
-                :organization/type
-                :organization/active
-                :organization/subOrganizationOf]}
+   ::pc/output [:organization/identifiers :organization/name :organization/type :organization/active
+                :org.w3.www.ns.prov/wasDerivedFrom          ; see https://www.w3.org/TR/prov-o/#wasDerivedFrom
+                :organization/isCommissionedBy :organization/subOrganizationOf]}
   (let [[uri value] (str/split id #"#")]
     (when-let [norg (normalize-org (fetch-org (get uri->oid uri) value))]
-      {:organization/identifiers       (->> (:identifiers norg)
-                                            (map #(str (:system %) "#" (:value %))))
-       :organization/name              (:name norg)
-       :organization/type              (get norg "@type")
-       :organization/active            (:active norg)
-       :organization/subOrganizationOf (->> (:relationships norg)
-                                            (filter (fn [rel] (= (:id rel) "RE6")))
-                                            (map :target)
-                                            (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))
+      {:organization/identifiers          (->> (:identifiers norg)
+                                               (map #(str (:system %) "#" (:value %))))
+       :organization/name                 (:name norg)
+       :organization/type                 (get norg "@type")
+       :organization/active               (:active norg)
+       :org.w3.www.ns.prov/wasDerivedFrom (->> (:predecessors norg)
+                                               (map :target)
+                                               (map #(str (:system %) "#" (:value %))))
+       :organization/isCommissionedBy     (->> (:relationships norg)
+                                               (filter :active)
+                                               (filter (fn [rel] (= (:id rel) "RE4")))
+                                               (map :target)
+                                               (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))
+       :organization/subOrganizationOf    (->> (:relationships norg)
+                                               (filter (fn [rel] (= (:id rel) "RE6")))
+                                               (filter :active)
+                                               (map :target)
+                                               (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))
+
+(pc/defresolver alias-fhir-uk-org
+  "An alias to map `:uk.nhs.fhir.id.ods-organization-code/id` into `:organization/id`"
+  [{:keys [database] :as env} {:keys [:uk.nhs.fhir.id.ods-organization-code/id]}]
+  {::pc/input  #{:uk.nhs.fhir.id.ods-organization-code/id}
+   ::pc/output [:organization/id]}
+  {:organization/id (str namespace-ods-organisation "#" id)})
+
+(pc/defresolver alias-fhir-uk-site
+  "An alias to map `:uk.nhs.fhir.id.ods-site-code/id` into `:organization/id`"
+  [{:keys [database] :as env} {:keys [:uk.nhs.fhir.id.ods-site-code/id]}]
+  {::pc/input  #{:uk.nhs.fhir.id.ods-site-code/id}
+   ::pc/output [:organization/id]}
+  {:organization/id (str namespace-ods-site "#" id)})
 
 (def registry
-  [postcode-resolver org-resolver])
+  [postcode-resolver org-resolver alias-fhir-uk-org alias-fhir-uk-site])
 
 (def parser
   (p/parser
@@ -308,9 +351,23 @@
                [:organization/name :organization/subOrganizationOf]}])
 
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
+               [:organization/name :org.w3.www.ns.prov/wasDerivedFrom]}])
+
+  (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
                [:organization/name :organization/active :organization/type
                 {:organization/subOrganizationOf [:organization/identifiers :organization/name]}]}])
-
+  (def norg (normalize-org (fetch-org "W93036")))
   (parser {} [{[:postalcode/id "CF14 2HB"] [:postalcode/id :organization/name]}])
   (parser {} [{[:postalcode/id "CF14 2HB"] [:OSGB36/easting :OSGB36/northing]}])
+  (parser {} [{[:postalcode/id "CF14 4XW"] [:LSOA11/id]}])
+  (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#W93036"]
+               [:organization/name :organization/active :organization/type
+                {:organization/isCommissionedBy [:organization/name]}]}])
+
+  (parser {} [{[:uk.nhs.fhir.id.ods-organization-code/id "7A4"]
+               [:organization/name :organization/subOrganizationOf]}])
+
+  (parser {} [{[:uk.nhs.fhir.id.ods-site-code/id "7A4BV"]
+               [:organization/name :organization/subOrganizationOf]}])
+
   )
