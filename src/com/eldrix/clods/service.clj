@@ -28,20 +28,31 @@
 (def namespace-ods-relationship "https://fhir.nhs.uk/Id/ods-relationship")
 (def namespace-ods-succession "https://fhir.nhs.uk/Id/ods-succession")
 
-
-
 ;; map clojure/java type namespaces (packages) into URIs
 (def namespace->uri {
                      "org.w3.www.2001.01.rdf-schema"        "http://www.w3.org/2000/01/rdf-schema#"
                      "org.w3.www.2001.XMLSchema"            "http://www.w3.org/2001/XMLSchema#"
                      "org.w3.www.2002.07.owl"               "http://www.w3.org/2002/07/owl#"
                      "org.w3.www.ns.prov"                   "http://www.w3.org/ns/prov#"
+                     "org.w3.www.2004.02.skos.core"         "http://www.w3.org/2004/02/skos/core#"
+                     "com.xmlns.foaf.0_1"                   "http://xmlns.com/foaf/0.1/"
                      "uk.nhs.fhir.id.ods-organization-code" "https://fhir.nhs.uk/Id/ods-organization-code#"
                      "uk.nhs.fhir.id.ods-site-code"         "https://fhir.nhs.uk/Id/ods-site-code"})
 
+(defn ns->uri
+  "Convert a clojure-type namespace (keyword) `kw` into a URI namespace"
+  [kw]
+  (let [[namespace property] (str/split (str (symbol kw)) #"/")]
+    (str (get namespace->uri namespace) property)))
 
-
-
+(defn uri->ns
+  "Convert a URI namespace into a clojure-type namespace (keyword)"
+  [uri]
+  (let [[domain path] (-> uri
+                          (str/replace-first #"^.+://" "")  ; remove protocol such as http:// or https://
+                          (str/replace #"\#.*" "")      ; remove any # from domain
+                          (str/split #"/" 2))]
+    (str/lower-case (str (str/join "." (reverse (str/split domain #"\."))) "." (str/replace path "/" ".")))))
 
 (defn fetch-org
   "Fetches an organisation by `root` and `identifier` from the data store"
@@ -213,27 +224,29 @@
   {::pc/input  #{:organization/id}
    ::pc/output [:organization/identifiers :organization/name :organization/type :organization/active
                 :org.w3.www.ns.prov/wasDerivedFrom          ; see https://www.w3.org/TR/prov-o/#wasDerivedFrom
+                :org.w3.www.2004.02.skos.core/prefLabel
                 :organization/isCommissionedBy :organization/subOrganizationOf]}
   (let [[uri value] (str/split id #"#")]
     (when-let [norg (normalize-org (fetch-org (get uri->oid uri) value))]
-      {:organization/identifiers          (->> (:identifiers norg)
-                                               (map #(str (:system %) "#" (:value %))))
-       :organization/name                 (:name norg)
-       :organization/type                 (get norg "@type")
-       :organization/active               (:active norg)
-       :org.w3.www.ns.prov/wasDerivedFrom (->> (:predecessors norg)
-                                               (map :target)
-                                               (map #(str (:system %) "#" (:value %))))
-       :organization/isCommissionedBy     (->> (:relationships norg)
-                                               (filter :active)
-                                               (filter (fn [rel] (= (:id rel) "RE4")))
-                                               (map :target)
-                                               (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))
-       :organization/subOrganizationOf    (->> (:relationships norg)
-                                               (filter (fn [rel] (= (:id rel) "RE6")))
-                                               (filter :active)
-                                               (map :target)
-                                               (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))
+      {:organization/identifiers               (->> (:identifiers norg)
+                                                    (map #(str (:system %) "#" (:value %))))
+       :organization/name                      (:name norg)
+       :org.w3.www.2004.02.skos.core/prefLabel (:name norg)
+       :organization/type                      (get norg "@type")
+       :organization/active                    (:active norg)
+       :org.w3.www.ns.prov/wasDerivedFrom      (->> (:predecessors norg)
+                                                    (map :target)
+                                                    (map #(str (:system %) "#" (:value %))))
+       :organization/isCommissionedBy          (->> (:relationships norg)
+                                                    (filter :active)
+                                                    (filter (fn [rel] (= (:id rel) "RE4")))
+                                                    (map :target)
+                                                    (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))
+       :organization/subOrganizationOf         (->> (:relationships norg)
+                                                    (filter (fn [rel] (= (:id rel) "RE6")))
+                                                    (filter :active)
+                                                    (map :target)
+                                                    (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))
 
 (pc/defresolver alias-fhir-uk-org
   "An alias to map `:uk.nhs.fhir.id.ods-organization-code/id` into `:organization/id`"
@@ -368,6 +381,19 @@
                [:organization/name :organization/subOrganizationOf]}])
 
   (parser {} [{[:uk.nhs.fhir.id.ods-site-code/id "7A4BV"]
-               [:organization/name :organization/subOrganizationOf]}])
+               [:org.w3.www.2004.02.skos.core/prefLabel :organization/subOrganizationOf]}])
+
+
+
+  namespace->uri
+  (def test-kw :org.w3.www.ns.prov/prefLabel)
+
+
+  (ns->uri :org.w3.www.2004.02.skos.core/prefLabel)
+  (def props {:org.w3.www.ns.prov/prefLabel      "UHW"
+              :org.w3.www.ns.prov/wasDerivedFrom [:org.nhs.fhir.id.ods-site-code "RWMBV"]})
+
+  (->> props
+       (map #(vector (ns->uri (first %)) (second %))))
 
   )
