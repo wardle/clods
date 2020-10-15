@@ -38,11 +38,18 @@
                                             (str root "|" id)]))]
      (json/read-str org :key-fn keyword))))
 
+(defn fetch-general-practitioners-for-org
+  ([id] (fetch-general-practitioners-for-org "2.16.840.1.113883.2.1.3.2.4.18.48" id))
+  ([root id]
+   (let [results (jdbc/execute! @datasource ["select data::varchar as gp from general_practitioners where organisation = ?"
+                                             (str root "|" id)])]
+     (map #(json/read-str (:gp %) :key-fn keyword) results))))
+
 (defn fetch-general-practitioner
   [id]
   (when-let [gp (:gp (jdbc/execute-one! @datasource
                                         ["SELECT data::varchar as gp FROM general_practitioners WHERE id = ?"
-                                        id]))]
+                                         id]))]
     (json/read-str gp :key-fn keyword)))
 
 (defn fetch-code [id]
@@ -136,9 +143,11 @@ file to generate a globally unique reference"
                           :dbname "ods"})
   (fetch-postcode "CF14 4XW")
   (fetch-org "7A4BV")
-  (fetch-general-practitioner "G0109806")
+  (def ashgrove (fetch-org "2.16.840.1.113883.2.1.3.2.4.18.48" "W95024"))
+  (fetch-general-practitioners-for-org "W95024")
+  (fetch-general-practitioner "G0232157")
   (jdbc/execute-one! @datasource
                      ["SELECT data::varchar as gp FROM general_practitioners WHERE id = ?"
-                     "G0109806"])
+                      "G0109806"])
   (connection-pool-stop)
   )
