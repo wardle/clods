@@ -38,6 +38,13 @@
                                             (str root "|" id)]))]
      (json/read-str org :key-fn keyword))))
 
+(defn fetch-general-practitioner
+  [id]
+  (when-let [gp (:gp (jdbc/execute-one! @datasource
+                                        ["SELECT data::varchar as gp FROM general_practitioners WHERE id = ?"
+                                        id]))]
+    (json/read-str gp :key-fn keyword)))
+
 (defn fetch-code [id]
   (jdbc/execute-one! @datasource
                      ["SELECT id, display_name, code_system FROM codes where id = ?" id]))
@@ -128,5 +135,10 @@ file to generate a globally unique reference"
   (connection-pool-start {:dbtype "postgresql"
                           :dbname "ods"})
   (fetch-postcode "CF14 4XW")
+  (fetch-org "7A4BV")
+  (fetch-general-practitioner "G0109806")
+  (jdbc/execute-one! @datasource
+                     ["SELECT data::varchar as gp FROM general_practitioners WHERE id = ?"
+                     "G0109806"])
   (connection-pool-stop)
   )
