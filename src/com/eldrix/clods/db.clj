@@ -13,7 +13,7 @@
 (def datasource (atom nil))
 
 (defn connection-pool-start [config]
-  (let [ds (connection/->pool HikariDataSource config]
+  (let [ds (connection/->pool HikariDataSource config)]
     (reset! datasource ds)
     @datasource))
 
