@@ -1,0 +1,1 @@
+DROP INDEX names_btree_tpo;

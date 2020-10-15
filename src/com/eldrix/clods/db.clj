@@ -1,5 +1,6 @@
 (ns com.eldrix.clods.db
   (:require [clojure.data.json :as json]
+            [clojure.string :as str]
             [com.eldrix.clods.postcode :as postcode]
             [clojure.tools.logging.readable :as log]
             [migratus.core :as migratus]
@@ -9,7 +10,6 @@
            (com.zaxxer.hikari HikariDataSource)))
 
 
-(set! *warn-on-reflection* true)
 
 (def datasource (atom nil))
 
@@ -21,14 +21,6 @@
 (defn connection-pool-stop []
   (.close @datasource))
 
-(defn single-connection-start [config]
-  (let [ds (next.jdbc/get-datasource config)]
-    (reset! datasource ds)))
-
-(defn single-connection-stop []
-  (.close @datasource))
-
-
 (defn fetch-org
   "Fetches an organisation by `root` and `identifier` from the data store"
   ([id] (fetch-org "2.16.840.1.113883.2.1.3.2.4.18.48" id))
@@ -37,6 +29,17 @@
                                            ["SELECT data::varchar as org FROM organisations WHERE id = ?"
                                             (str root "|" id)]))]
      (json/read-str org :key-fn keyword))))
+
+(defn search-org
+  [s]
+  (if (> (count s) 2)
+    (let [s2 (str "%" (str/replace (str/upper-case s) #"\s+" "%") "%")
+          results (jdbc/execute! @datasource
+                                 ["select data::varchar as org from organisations where name like ?" s2])]
+      (map #(json/read-str (:org %) :key-fn keyword) results))
+    []))
+
+
 
 (defn fetch-general-practitioners-for-org
   ([id] (fetch-general-practitioners-for-org "2.16.840.1.113883.2.1.3.2.4.18.48" id))
@@ -136,16 +139,25 @@ file to generate a globally unique reference"
   ;list pending migrations
   (migratus/pending-list config)
 
+  (migratus/create config "add-org-name-index")
+
   ;apply pending migrations
   (migratus/migrate config)
 
   (connection-pool-start {:dbtype "postgresql"
-                          :dbname "ods"})
+                          :dbname "ods"
+                          :maximumPoolSize 10})
   (fetch-postcode "CF14 4XW")
   (fetch-org "7A4BV")
   (def ashgrove (fetch-org "2.16.840.1.113883.2.1.3.2.4.18.48" "W95024"))
   (fetch-general-practitioners-for-org "W95024")
   (fetch-general-practitioner "G0232157")
+  (->> (search-org "monmouth")
+       (filter :active)
+       (map :name))
+
+  @datasource
+
   (jdbc/execute-one! @datasource
                      ["SELECT data::varchar as gp FROM general_practitioners WHERE id = ?"
                       "G0109806"])
