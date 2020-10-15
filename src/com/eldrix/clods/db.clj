@@ -1,5 +1,6 @@
 (ns com.eldrix.clods.db
   (:require [clojure.data.json :as json]
+            [com.eldrix.clods.postcode :as postcode]
             [clojure.tools.logging.readable :as log]
             [migratus.core :as migratus]
             [next.jdbc :as jdbc]
@@ -26,6 +27,27 @@
 
 (defn single-connection-stop []
   (.close @datasource))
+
+
+(defn fetch-org
+  "Fetches an organisation by `root` and `identifier` from the data store"
+  ([id] (fetch-org "2.16.840.1.113883.2.1.3.2.4.18.48" id))
+  ([root id]
+   (when-let [org (:org (jdbc/execute-one! @datasource
+                                           ["SELECT data::varchar as org FROM organisations WHERE id = ?"
+                                            (str root "|" id)]))]
+     (json/read-str org :key-fn keyword))))
+
+(defn fetch-code [id]
+  (jdbc/execute-one! @datasource
+                     ["SELECT id, display_name, code_system FROM codes where id = ?" id]))
+
+(defn fetch-postcode [pcode]
+  (when-let [pc (:pc (jdbc/execute-one! @datasource
+                                        ["SELECT data::varchar as pc FROM postcodes where pcd2 = ?"
+                                         (postcode/egif pcode)]))]
+    (json/read-str pc :key-fn keyword)))
+
 
 (def config {:store                :database
              :migration-dir        "migrations/"
@@ -103,4 +125,8 @@ file to generate a globally unique reference"
   ;apply pending migrations
   (migratus/migrate config)
 
+  (connection-pool-start {:dbtype "postgresql"
+                          :dbname "ods"})
+  (fetch-postcode "CF14 4XW")
+  (connection-pool-stop)
   )
