@@ -1,7 +1,8 @@
-(ns com.eldrix.clods.service
+(ns com.eldrix.clods.ws
   (:require
     [ring.adapter.jetty :as jetty]
     [clojure.data.json :as json]
+    [clojure.walk :as walk]
     [compojure.core :refer :all]
     [compojure.route :as route]
     [ring.middleware.json :as middleware]
@@ -9,10 +10,14 @@
     [ring.middleware.params :as params]
     [com.wsscode.pathom.core :as p]
     [com.wsscode.pathom.connect :as pc]
+    [com.walmartlabs.lacinia.schema :as schema]
+    [com.walmartlabs.lacinia :refer [execute]]
+    [com.walmartlabs.lacinia.util :as util]
     [clojure.core.async :refer [<!!]]
     [clojure.string :as str]
     [next.jdbc :as jdbc]
-    [com.eldrix.clods.postcode :as postcode]))
+    [com.eldrix.clods.postcode :as postcode])
+  (:import (clojure.lang IPersistentMap)))
 
 ; TODO: add connection pooling and runtime configuration
 (def db {:dbtype "postgresql" :dbname "ods"})
@@ -37,7 +42,7 @@
                      "org.w3.www.2004.02.skos.core"         "http://www.w3.org/2004/02/skos/core#"
                      "com.xmlns.foaf.0_1"                   "http://xmlns.com/foaf/0.1/"
                      "uk.nhs.fhir.id.ods-organization-code" "https://fhir.nhs.uk/Id/ods-organization-code#"
-                     "uk.nhs.fhir.id.ods-site-code"         "https://fhir.nhs.uk/Id/ods-site-code"})
+                     "uk.nhs.fhir.id.ods-site-code"         "https://fhir.nhs.uk/Id/ods-site-code#"})
 
 (defn ns->uri
   "Convert a clojure-type namespace (keyword) `kw` into a URI namespace"
@@ -50,7 +55,7 @@
   [uri]
   (let [[domain path] (-> uri
                           (str/replace-first #"^.+://" "")  ; remove protocol such as http:// or https://
-                          (str/replace #"\#.*" "")      ; remove any # from domain
+                          (str/replace #"\#.*" "")          ; remove any # from domain
                           (str/split #"/" 2))]
     (str/lower-case (str (str/join "." (reverse (str/split domain #"\."))) "." (str/replace path "/" ".")))))
 
@@ -217,7 +222,7 @@
   A number of different URIs are supported, including OIDS and the FHIR URIs.
 
   The main idea here is to provide a more abstract and general purpose set of
-  properties and relationships for an organisation that that providing by the UK ODS.
+  properties and relationships for an organisation that that provided by the UK ODS.
   The plan is that the vocabulary should use a standardised vocabulary such as
   that from [https://www.w3.org/TR/vocab-org/](https://www.w3.org/TR/vocab-org/)"
   [{:keys [database] :as env} {:keys [:organization/id]}]
@@ -253,7 +258,7 @@
   [{:keys [database] :as env} {:keys [:uk.nhs.fhir.id.ods-organization-code/id]}]
   {::pc/input  #{:uk.nhs.fhir.id.ods-organization-code/id}
    ::pc/output [:organization/id]}
-  {:organization/id (str namespace-ods-organisation "#" id)})
+  {:organizattion/id (str namespace-ods-organisation "#" id)})
 
 (pc/defresolver alias-fhir-uk-site
   "An alias to map `:uk.nhs.fhir.id.ods-site-code/id` into `:organization/id`"
@@ -351,11 +356,50 @@
   (jetty/run-jetty #'app {:port (or port 3000) :join? (not is-development)})
   (println "server running in port 3000"))
 
+
+
+(def lacinia-schema
+  '{:objects {
+              :Organisation {:description "An ODS organization"
+                             :fields      {:id   {:type (non-null ID)}
+                                           :name {:type (non-null String)}}}
+              :BoardGame    {:description "A physical or virtual board game."
+                             :fields      {:id          {:type (non-null ID)}
+                                           :name        {:type (non-null String)}
+                                           :summary     {:type        String
+                                                         :description "A one-line summary of the game."}
+                                           :description {:type        String
+                                                         :description "A long-form description of the game."}
+                                           :min_players {:type        Int
+                                                         :description "The minimum number of players the game supports."}
+                                           :max_players {:type        Int
+                                                         :description "The maximum number of players the game supports."}
+                                           :play_time   {:type        Int
+                                                         :description "Play time, in minutes, for a typical game."}}}}
+    :queries
+             {:organization_by_id {:type        :Organisation
+                                   :description "Access an organization by its ODS identifier."
+                                   :args        {:id {:type ID}}
+                                   :resolve     :query/organization-by-id}
+              :game_by_id         {:type        :BoardGame
+                                   :description "Access a BoardGame by its unique id, if it exists."
+                                   :args        {:id {:type ID}}
+                                   :resolve     :query/game-by-id}}}
+  )
+
+(defn resolver-map
+  []
+  {:query/game-by-id (fn [id] {:id id :wibble "Wobble"})})
+
+
+
+
 (comment
   (start {:port 3000 :is-development true})
 
   (def org (fetch-org "7A4"))
-
+  (fetch-org "W93036")
+  (fetch-org "G3315839")
   (println (:name org))
   (def org (fetch-org "7A4BV"))
   (def norg (normalize-org org))
@@ -366,11 +410,14 @@
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
                [:organization/name :org.w3.www.ns.prov/wasDerivedFrom]}])
 
+  ;; look up an organisation using a URI (system)/ value identifier and get name and type and suborganisation information
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
                [:organization/name :organization/active :organization/type
                 {:organization/subOrganizationOf [:organization/identifiers :organization/name]}]}])
+
   (def norg (normalize-org (fetch-org "W93036")))
-  (parser {} [{[:postalcode/id "CF14 2HB"] [:postalcode/id :organization/name]}])
+
+  (parser {} [{[:postalcode/id "CF14 2HB"] [:postalcode/id :organization/name {:org.w3.www.ns.prov/wasDerivedFrom [:id]} :LSOA11/id :OSGB36/easting :OSGB36/northing]}])
   (parser {} [{[:postalcode/id "CF14 2HB"] [:OSGB36/easting :OSGB36/northing]}])
   (parser {} [{[:postalcode/id "CF14 4XW"] [:LSOA11/id]}])
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#W93036"]
@@ -393,7 +440,41 @@
   (def props {:org.w3.www.ns.prov/prefLabel      "UHW"
               :org.w3.www.ns.prov/wasDerivedFrom [:org.nhs.fhir.id.ods-site-code "RWMBV"]})
 
+
   (->> props
        (map #(vector (ns->uri (first %)) (second %))))
 
+
+
+
+  (defn simplify
+    "Converts all ordered maps nested within the map into standard hash maps, and
+     sequences into vectors, which makes for easier constants in the tests, and eliminates ordering problems."
+    [m]
+    (walk/postwalk
+      (fn [node]
+        (cond
+          (instance? IPersistentMap node)
+          (into {} node)
+
+          (seq? node)
+          (vec node)
+
+          :else
+          node))
+      m))
+
+  (def compiled-schema
+    (schema/compile (util/attach-resolvers lacinia-schema
+                                           {:query/organization-by-id (fn [context args value]
+                                                                        (fetch-org (:id args)))
+                                            :query/game-by-id         (fn [context args value]
+                                                                        {:id (:id args) :name "Wobble" :summary "A really cool game"})})))
+  (simplify (execute compiled-schema
+                     "{ game_by_id(id: \"foo\") { id name summary }}"
+                     nil nil))
+
+  (simplify (execute compiled-schema
+                     "{ organization_by_id(id: \"7A4BV\") { id name  }}"
+                     nil nil))
   )

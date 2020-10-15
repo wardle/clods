@@ -1,50 +1,43 @@
 (ns com.eldrix.clods.ods
   "Provides functions for importing organisational data services (ODS) data.
-The complete range of organisational data is made up from multiple sources
-in different formats and 'clods' is designed to abstract and hide this complexity
-as much as possible. Sadly, as far as I am aware TRUD does not provide an API
-to download data files or an easy way to support the automatic identification of
-updated files.
+   The complete range of organisational data is made up from multiple sources
+   in different formats and 'clods' is designed to abstract and hide this complexity
+   as much as possible. Sadly, as far as I am aware TRUD does not provide an API
+   to download data files or an easy way to support the automatic identification of
+   updated files.
 
-To confuse matters, many of the downloads available are actually derived from a master
-XML file of organisational data.
+  To confuse matters, many of the downloads available are actually derived from a master
+  XML file of organisational data.
 
-Download the XML file from TRUD: https://isd.digital.nhs.uk/trud3/user/guest/group/0/pack/5/subpack/341/releases
-
-This needs to be supplemented with additional files from, listed as 'No' under 'Available in XML'
-https://digital.nhs.uk/services/organisation-data-service/data-downloads/gp-and-gp-practice-related-data
-- Current GPs (egpcur)
-- Archived GPs (egparc)"
+  Download the XML file from TRUD: https://isd.digital.nhs.uk/trud3/user/guest/group/0/pack/5/subpack/341/releases
+  This needs to be supplemented with additional files from, listed as 'No' under 'Available in XML'
+  https://digital.nhs.uk/services/organisation-data-service/data-downloads/gp-and-gp-practice-related-data
+  - Current GPs (egpcur)
+  - Archived GPs (egparc)"
   (:require
-    [clj-bom.core :as bom]
-    [clojure.data.xml :as xml]
-    [clojure.data.zip.xml :as zx :refer [xml-> xml1-> attr= attr text]]
-    [clojure.zip :as zip]
-    [next.jdbc :as jdbc]
-    [clj-http.client :as http]
-    [clojure.data.json :as json]
+    [clojure.core.async :as async]
     [clojure.data.csv :as csv]
+    [clojure.data.json :as json]
+    [clojure.data.xml :as xml]
+    [clojure.data.zip.xml :refer [xml-> xml1-> attr= attr text]]
     [clojure.java.io :as io]
-    [clojure.tools.logging :as log])
+    [clojure.zip :as zip]
+    [clj-bom.core :as bom]
+    [clj-http.client :as http])
   (:import
     (java.io File InputStreamReader)
     (java.util.zip ZipFile)))
 
 (def supported-ods-xml-version "2-0-0")
 
-(def files
-  "A list of general practitioner ODS files and their download locations for data not in the master XML file"
+(def ^:private files
+  "A list of general practitioner ODS files and their download locations for data not in the master XML file."
   {:egpcur {:name        "egpcur"
             :description "General practitioners"
             :url         "https://files.digital.nhs.uk/assets/ods/current/egpcur.zip"}
    :egparc {:name        "egparc"
             :description "Archived GP Practitioners"
             :url         "https://files.digital.nhs.uk/assets/ods/current/egparc.zip"}})
-
-(def general-practitioner-org-oid
-  "We can safely prepend this oid to organisations referenced in the 27 field format
-file to generate a globally unique reference"
-  "2.16.840.1.113883.2.1.3.2.4.18.48")
 
 (def n27-field-format
   "The standard ODS 27-field format headings"
@@ -74,8 +67,7 @@ file to generate a globally unique reference"
    :currentOrg
    :nil
    :nil
-   :nil
-   ])
+   :nil])
 
 (defn parse-concept
   [code-system code]
@@ -112,14 +104,11 @@ file to generate a globally unique reference"
    :uprn     (xml1-> l :UPRN text)})
 
 (defn parse-role [role]
-  {
-   :id        (xml1-> role (attr :id))
+  {:id        (xml1-> role (attr :id))
    :isPrimary (let [v (xml1-> role (attr :primaryRole))] (if v (json/read-str v) false))
    :active    (= "Active" (xml1-> role :Status (attr :value)))
    :startDate (xml1-> role :Date :Start (attr :value))
-   :endDate   (xml1-> role :Date :End (attr :value))
-   }
-  )
+   :endDate   (xml1-> role :Date :End (attr :value))})
 
 (defn parse-roles [roles]
   (xml-> roles :Role parse-role))
@@ -136,8 +125,7 @@ file to generate a globally unique reference"
    :startDate (xml1-> rel :Date :Start (attr :value))
    :endDate   (xml1-> rel :Date :End (attr :value))
    :active    (= "Active" (xml1-> rel :Status (attr :value)))
-   :target    (xml1-> rel :Target :OrgId parse-orgid)
-   })
+   :target    (xml1-> rel :Target :OrgId parse-orgid)})
 
 (defn parse-rels [rels]
   (xml-> rels :Rel parse-rel))
@@ -169,21 +157,25 @@ file to generate a globally unique reference"
         {:legal {:start (xml1-> (zip/up op) :Start (attr :value))
                  :end   (xml1-> (zip/up op) :End (attr :value))}}))))
 
-(defn process-organisations
-  "Processes organisations from the TRUD ODS XML file, calling fn f with a batch of organisations,
-  each a tidied-up version of the original XML more suitable for onward manipulation"
-  [in f]
+(defn- read-organisations
+  "Blocking; processes organisations from the TRUD ODS XML file `in`, sending an (unparsed) XML fragment
+  representing an organisation to the channel `ch` specified."
+  [in ch close?]
   (with-open [rdr (bom/bom-reader in)]
     (->> (:content (xml/parse rdr :skip-whitespace true))
          (filter #(= :Organisations (:tag %)))
          (first)
          (:content)
          (filter #(= :Organisation (:tag %)))
-         (map zip/xml-zip)
-         (map parse-org)
-         (filter #(not (:isReference %)))
-         (partition-all 10000)
-         (run! f))))
+         (run! #(async/>!! ch %))))
+  (when close? (async/close! ch)))
+
+(def xf-organisation-xml->map
+  "Transducer that takes an organisation XML element (from xml/parse) and parses
+  it into a clojure map, removing organisations that are only references."
+  (comp (map zip/xml-zip)
+        (map parse-org)
+        (filter #(not (:isReference %)))))
 
 (defn manifest
   "Returns manifest information from the ODS XML 'manifest' header"
@@ -215,59 +207,29 @@ file to generate a globally unique reference"
 
 (defn- org-by-code
   "Returns organisations defined by ODS code (e.g. RWMBV for UHW, Cardiff) as a demonstration of parsing the ODS XML.
-  This is an unoptimised search through the ODS XML file and is simply a private demonstration, rather than intended
-  for operational use"
+  This ia a private demonstration, rather than intended for operational use."
   [in code]
-  (process-organisations in
-                         (fn [orgs]
-                           (run! prn (filter #(= code (get-in % [:orgId :extension])) orgs)))))
-
-(defn import-code-systems
-  [in ds]
-  (let [cs (code-systems in)
-        v (map #(vector (:oid %) (:name %)) cs)]
-    (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into codesystems (oid,name) values (?,?) on conflict (oid) do update set name = EXCLUDED.name"])]
-      (next.jdbc.prepare/execute-batch! ps v))))
-
-(defn import-codes
-  [in ds]
-  (let [codes (all-codes in)
-        v (map #(vector (:id %) (:displayName %) (:codeSystem %)) codes)]
-    (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into codes (id,display_name,code_system) values (?,?,?) on conflict (id) do update set display_name = EXCLUDED.display_name, code_system = EXCLUDED.code_system"])]
-      (next.jdbc.prepare/execute-batch! ps v))))
-
-(defn import-orgs
-  "Import a batch of organisations"
-  [ds orgs]
-  (let [v (map #(vector
-                  (str (get-in % [:orgId :root]) "|" (get-in % [:orgId :extension]))
-                  (:name %)
-                  (:active %)
-                  (json/write-str %)) orgs)]
-    (with-open [con (jdbc/get-connection ds)
-                ps (jdbc/prepare con ["insert into organisations (id,name,active,data) values (?,?,?,?::jsonb) on conflict (id) do update set name = EXCLUDED.name, active= EXCLUDED.active, data = EXCLUDED.data"])]
-      (next.jdbc.prepare/execute-batch! ps v))))
+  (let [ch (async/chan)
+        out (async/chan)]
+    (async/thread (read-organisations in ch true))
+    (async/pipeline 8 out (comp xf-organisation-xml->map
+                                (filter #(= code (get-in % [:orgId :extension])))
+                                (take 1)) ch)
+    (async/<!! out)))
 
 (defn import-organisations
-  [in ds]
-  (process-organisations in (partial import-orgs ds)))
+  "Imports batches of organisations calling back function `f` with batches of organisations."
+  [in nthreads batch-size f]
+  (let [ch (async/chan)
+        out (async/chan batch-size (partition-all batch-size))]
+    (async/thread (read-organisations in ch true))
+    (async/pipeline nthreads out xf-organisation-xml->map ch)
+    (loop [batch (async/<!! out)]
+      (when batch
+        (f batch)
+        (recur (async/<!! out))))))
 
-(defn import-all-xml
-  "Imports organisational data from an ODS XML file"
-  [in ds]
-  (let [mft (manifest in)]
-    (log/info "Manifest: " mft)
-    (if (= (:version mft) supported-ods-xml-version)
-      (do (import-code-systems in ds)
-          (import-codes in ds)
-          (import-organisations in ds))
-      (log/fatal "unsupported ODS XML version. expected" supported-ods-xml-version "got:" (:version mft)))))
-
-
-(defn download [url target]
-  "Download from the url to the target, which will be coerced as per clojure.io/output-stream"
+(defn- download [url target]
   (let [request (http/get url {:as :stream})
         buffer-size (* 1024 10)]
     (with-open [input (:body request)
@@ -279,7 +241,7 @@ file to generate a globally unique reference"
               (.write output buffer 0 size)
               (recur))))))))
 
-(defn file-from-zip
+(defn- file-from-zip
   "Reads from the zipfile specified, extracts the file `filename` and passes each line to your function `f`"
   [zipfile filename f]
   (with-open [zipfile (new ZipFile zipfile)]
@@ -287,39 +249,36 @@ file to generate a globally unique reference"
       (let [reader (InputStreamReader. (.getInputStream zipfile entry))]
         (run! f (csv/read-csv reader))))))
 
-(defn download-ods-file
-  "Downloads the specified ODS filetype `t` (e.g. :egpcur) calling func `f` with a map representing each item"
-  [t f]
-  (let [filetype (t files)
-        temp (File/createTempFile (:name filetype) ".zip")]
-    (download (:url filetype) temp)
-    (file-from-zip temp (str (:name filetype) ".csv")
-                   (fn [line]
-                     (f (zipmap n27-field-format line))))
-    (.delete temp)))
+(defn- download-ods-file
+  "Blocking; downloads the specified ODS filetype `t` (e.g. :egpcur) returning each item on the channel specified."
+  ([t ch] (download-ods-file t ch true))
+  ([t ch close?]
+   (let [filetype (t files)
+         temp (File/createTempFile (:name filetype) ".zip")]
+     (when-not filetype
+       (throw (IllegalArgumentException. (str "unsupported filetype: " t))))
+     (download (:url filetype) temp)
+     (file-from-zip temp (str (:name filetype) ".csv")
+                    (fn [line]
+                      (async/>!! ch (zipmap n27-field-format line))))
+     (when close? (async/close! ch))
+     (.delete temp))))
 
-
-(defn import-general-practitioners [t ds]
-  (log/info "downloading and importing data from" (get-in files [t :name]) "-" (get-in files [t :description]))
-  (with-open [con (jdbc/get-connection ds)
-              ps (jdbc/prepare con ["insert into general_practitioners (id, name, organisation, data) values (?,?,?,?::jsonb) on conflict (id) do update set name = EXCLUDED.name, organisation = EXCLUDED.organisation, data = EXCLUDED.data"])]
-    (download-ods-file
-      t (fn [line]
-          (try
-            (next.jdbc.prepare/set-parameters ps [(:organisationCode line) (:name line) (str general-practitioner-org-oid "|" (:parent line)) (json/write-str line)])
-            (jdbc/execute! ps)
-            (catch Exception e (when-not (:leftParentDate line) (log/error e "failed to import: " line))))))))
-
-
-(defn import-all-general-practitioners
-  [ds]
-  (import-general-practitioners :egpcur ds)                 ;; current general practitioners
-  (import-general-practitioners :egparc ds))                ;; archived general practitioners
-
-
+(defn download-general-practitioners
+  "Downloads data on current and archived general practitioners,
+  returning data in batches to the fn `f` specified."
+  [batch-size f]
+  (let [current (async/chan batch-size (partition-all batch-size))
+        archive (async/chan batch-size (partition-all batch-size))]
+    (async/thread (download-ods-file :egpcur current))
+    (async/thread (download-ods-file :egparc archive))
+    (let [merged (async/merge [current archive])]
+      (loop [batch (async/<!! merged)]
+        (when batch
+          (f batch)
+          (recur (async/<!! merged)))))))
 
 (comment
-
   (require '[clojure.repl :refer :all])
 
   ;; The main ODS data is provided in XML format and available for
@@ -329,6 +288,24 @@ file to generate a globally unique reference"
   (manifest filename)
   (:version (manifest filename))
   (code-systems filename)
+
+  (all-codes filename)
+  (org-by-code filename "RRF12")
+  (org-by-code filename "7A4BV")
+  (def ch (async/chan))
+  (def out (async/chan 5 (partition-all 5)))
+  (async/thread (read-organisations filename ch true))
+  (async/pipeline 8 out xf-organisation-xml->map ch)
+  (async/<!! out)
+
+  (def gps (download-general-practitioners))
+  (async/<!! gps)
+
+  (def total (atom 0))
+  (import-organisations filename 8 1000
+                        (fn [batch]
+                          (swap! total + (count batch))
+                          (println "\rProcessed " @total)))
 
   ;; these are the individual steps used by metadata and import-organisations
   (def rdr (-> filename
@@ -369,19 +346,6 @@ file to generate a globally unique reference"
   (->> (take 5 (filter #(= :Organisation (:tag %)) (:content orgs)))
        (map parse-xml)
        (map #(vector (get-in % [:Organisation :Name]) (json/write-str (:Organisation %)))))
-
-
-  (def db {:dbtype "postgresql" :dbname "ods"})
-  (def ds (jdbc/get-datasource db))
-  (def f-full "/Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Full_20200427.xml")
-  (def f-archive "/Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Archive_20200427.xml")
-
-  (import-code-systems filename ds)
-  (import-codes filename ds)
-  (import-organisations f-full ds)
-  (import-organisations f-archive ds)
-  (import-general-practitioners :egpcur ds)
-  (import-general-practitioners :egparc ds)
   )
 
 

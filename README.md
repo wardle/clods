@@ -6,6 +6,8 @@ This is designed to provide "location" services down to the granularity of an or
 with more finely-grained location services (e.g. ward, bed) provided by other modules
 as part of a unified concierge location service.
 
+This service can provides a simple REST-based service or through a graph-like API.
+
 ## Prerequisites
 
 You will need [Leiningen][] 2.0.0 or above installed.
