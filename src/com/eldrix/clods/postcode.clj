@@ -3,8 +3,7 @@
     [clojure.string :as s]
     [clojure.java.io :as io]
     [clojure.data.json :as json]
-    [clojure.data.csv :as csv]
-    [clojure.core.async :as async])
+    [clojure.data.csv :as csv])
 
   (:import
     (java.io InputStreamReader)))
@@ -14,7 +13,7 @@
 ;; geographies.
 ;;
 ;; Unfortunately, it is not possible to automatically download these data from a machine-readable
-;; canonical resource, but the download is available manually.
+;; canonical resource, as far as I know, but the download is available manually.
 ;;
 ;; The February 2020 release is available at:
 ;; https://geoportal.statistics.gov.uk/datasets/nhs-postcode-directory-uk-full-february-2020
@@ -42,6 +41,18 @@
   [pc]
   (s/upper-case (s/replace pc #"\s+" " ")))
 
+(defn distance-between
+  "Calculates the distance between two postcodes, determined by the square root of the sum of the square of
+  the difference in grid coordinates (Pythagoras), result in metres.
+  Parameters:
+  - pc1d - first postcode NHSPD data (map)
+  - pc2d - second postcode NHSPD data (map)"
+  [pcd1 pcd2]
+  (let [[x1 y1] (map #(Double/parseDouble %) [(:OSNRTH1M pcd1) (:OSEAST1M pcd1)])
+        [x2 y2] (map #(Double/parseDouble %) [(:OSNRTH1M pcd2) (:OSEAST1M pcd2)])
+        xd (- x1 x2)
+        yd (- y1 y2)]
+    (Math/sqrt (+ (* xd xd) (* yd yd)))))
 
 (defn import-postcodes
   "Import batches of postcodes to the function specified, each formatted as a vector representing
@@ -60,5 +71,4 @@
 
   ;; this is the Feb 2020 release file (928mb)
   (def filename "/Users/mark/Downloads/NHSPD_FEB_2020_UK_FULL/Data/nhg20feb.csv")
-
   )
