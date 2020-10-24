@@ -11,7 +11,7 @@
 
 
 
-(def datasource (atom nil))
+(def ^javax.sql.DataSource datasource (atom nil))
 
 (defn connection-pool-start [config]
   (let [ds (connection/->pool HikariDataSource config)]
@@ -31,6 +31,7 @@
      (json/read-str org :key-fn keyword))))
 
 (defn search-org
+  "Search for an organisation by name"
   [s]
   (if (> (count s) 2)
     (let [s2 (str "%" (str/replace (str/upper-case s) #"\s+" "%") "%")
@@ -39,7 +40,18 @@
       (map #(json/read-str (:org %) :key-fn keyword) results))
     []))
 
-
+(defn search-org-role
+  "Search for an organisation by name or address and role.
+   select id,name from organisations where name like 'CASTLE GATE%' and data->'roles' @> '[{\"id\":\"RO65\", \"active\" : true}]';"
+  [s role]
+  (if (> (count s) 2)
+    (let [s2 (str "%" (str/replace (str/upper-case s) #"\s+" "%") "%")
+          r2 (str "[{\"id\":\"" role "\",\"active\" : true}]")
+          results (jdbc/execute! @datasource
+                                 ["select data::varchar as org from organisations where name like ? and data->'roles' @> ?::jsonb"
+                                  s2, r2])]
+      (map #(json/read-str (:org %) :key-fn keyword) results))
+    []))
 
 (defn fetch-general-practitioners-for-org
   ([id] (fetch-general-practitioners-for-org "2.16.840.1.113883.2.1.3.2.4.18.48" id))
@@ -103,7 +115,7 @@
   (with-open [ps (jdbc/prepare conn ["insert into organisations (id,name,active,data) values (?,?,?,?::jsonb) on conflict (id) do update set name = EXCLUDED.name, active= EXCLUDED.active, data = EXCLUDED.data"])]
     (let [v (map #(vector
                     (str (get-in % [:orgId :root]) "|" (get-in % [:orgId :extension]))
-                    (:name %)
+                    (str (:name %) " " (get-in % [:location :address1]) " " (get-in % [:location :town]) " " (get-in % [:location :postcode]))
                     (:active %)
                     (json/write-str %)) orgs)]
       (next.jdbc.prepare/execute-batch! ps v))))
@@ -144,17 +156,20 @@ file to generate a globally unique reference"
   ;apply pending migrations
   (migratus/migrate config)
 
-  (connection-pool-start {:dbtype "postgresql"
-                          :dbname "ods"
+  (connection-pool-start {:dbtype          "postgresql"
+                          :dbname          "ods"
                           :maximumPoolSize 10})
   (fetch-postcode "CF14 4XW")
   (fetch-org "7A4BV")
   (def ashgrove (fetch-org "2.16.840.1.113883.2.1.3.2.4.18.48" "W95024"))
+  ashgrove
   (fetch-general-practitioners-for-org "W95024")
   (fetch-general-practitioner "G0232157")
   (->> (search-org "monmouth")
        (filter :active)
        (map :name))
+  (search-org-role "monmouth" "RO72")
+  (search-org-role "CF14" "RO72")
 
   @datasource
 
