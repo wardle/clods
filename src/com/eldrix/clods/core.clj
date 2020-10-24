@@ -30,7 +30,7 @@
         (do
           (store/insert-code-systems conn (ods/code-systems in))
           (store/insert-codes conn (ods/all-codes in))
-          (ods/import-organisations in 8 1000 (partial store/insert-organisations conn)))
+          (ods/import-organisations in 8 100 (partial store/insert-organisations conn)))
         (log/fatal "unsupported ODS XML version. expected" ods/supported-ods-xml-version "got:" (:version mft))))))
 
 (defn do-import-ods-xml
@@ -93,8 +93,8 @@
   (.close conn)
   (store/insert-code-systems conn (ods/code-systems f-full))
   (store/insert-codes conn (ods/all-codes f-full))
-  (ods/import-organisations f-full 8 1000 (partial store/insert-organisations conn))
-  (ods/import-organisations f-archive 8 1000 (partial store/insert-organisations conn))
+  (ods/import-organisations f-full 4 100 (partial store/insert-organisations conn))
+  (ods/import-organisations f-archive 4 100 (partial store/insert-organisations conn))
   (ods/download-general-practitioners 100 (partial store/insert-general-practitioners conn))
   (postcode/import-postcodes postcode-file (partial store/insert-postcodes conn))
 
