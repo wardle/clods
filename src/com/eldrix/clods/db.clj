@@ -46,27 +46,6 @@
      :values [(- OSNRTH1M range-metres) (- OSEAST1M range-metres)
               (+ OSNRTH1M range-metres) (+ OSEAST1M range-metres)]}))
 
-(defn- search-org
-  "Search for an organisation by name"
-  [s]
-  (if (> (count s) 2)
-    (->> (jdbc/execute! @datasource
-                        ["select data::varchar as org from organisations where name like ?"
-                         (name-query s)])
-         (map #(json/read-str (:org %) :key-fn keyword)))
-    []))
-
-(defn- search-org-role
-  "Search for an organisation by name or address and role."
-  [s role]
-  (if (> (count s) 2)
-    (->> (jdbc/execute! @datasource
-                        ["select data::varchar as org from organisations where name like ? and ? = ANY(roles)"
-                         (name-query s), role])
-         (map #(json/read-str (:org %) :key-fn keyword)))
-    []))
-
-
 (defn search-org-query
   "Generate a SQL vector containing SQL and parameters to search for an organisation.
 
@@ -91,43 +70,32 @@
                          (when limit (str " limit " limit)))
                        (map second clauses)]))))
 
-(defn- search-org-distance
+(defn search-org
   "Search for an organisation.
-  The parameters are as for `search-org-query`."
-  [params]
-  (->> (jdbc/execute! @datasource (search-org-query params))
-       (map #(-> (json/read-str (:org %) :key-fn keyword)
-                 (assoc-in [:location :OSNRTH1M] (:organisations/osnrth1m %))
-                 (assoc-in [:location :OSEAST1M] (:organisations/oseast1m %))))
-       (map #(assoc % :distance-from (postcode/distance-between params (:location %))))
-       (sort-by :distance-from)))
-
-(defn structured-org-search
-  " Search for an active organisation with the given role, results sorted in
-  order of distance from given 'postcode'.
   Parameters:
-  |- :s           : search text - will search name or address1 or town or postcode
-  |- :role        : role code, optional, e.g. RO72 for GP surgery
-  |- :only-active : default true, whether to only include active organisations
-  |- :near        : specify a 'location' and optional 'range' from which to search
-
-  Near:
-  |- :postcode : postcode of location to centre search
-  |- :OSNRTH1M : northing UK grid reference
-  |- :OSEAST1M : easting UK grid reference
+  |- :s            : search text - will search name or address1 or town or postcode
+  |- :role         : role code, optional, e.g. RO72 for GP surgery
+  |- :only-active  : default true, whether to only include active organisations
+  |- :OSNRTH1M     : northing UK grid reference on which to centre search
+  |- :OSEAST1M     : easting UK grid reference on which to centre search
   |- :range-metres : if given, results will be limited to within this range. "
-  [{:keys [s role only-active near] :or {only-active true} :as opts}]
-  (let [{:keys [postcode OSNRTH1M OSEAST1M range-metres]} near]
-    (cond
-      (and OSNRTH1M OSEAST1M)
-      (search-org-distance (merge opts near))
-      postcode
-      (when-let [pcd (fetch-postcode postcode)]
-        (search-org-distance (merge opts near pcd)))
-      role
-      (search-org-role s role)
-      :else
-      (search-org s))))
+  [{:keys [s only-active role OSNRTH1M OSEAST1M range-metres limit] :as params}]
+  (println "searching for organisation: " params)
+  (let [calculate-distances? (and OSNRTH1M OSEAST1M (pos? OSNRTH1M) (pos? OSEAST1M))
+        filter-range-fn (if (and calculate-distances? range-metres (pos-int? range-metres))
+                          #(< (:distance-from %) range-metres)
+                          #(some? %))
+        result (->> (jdbc/execute! @datasource (search-org-query params))
+                    (map #(-> (json/read-str (:org %) :key-fn keyword)
+                              (assoc-in [:location :OSNRTH1M] (:organisations/osnrth1m %))
+                              (assoc-in [:location :OSEAST1M] (:organisations/oseast1m %)))))]
+    (println "calculate distances? " calculate-distances?)
+    (if calculate-distances?
+      (->> result
+           (map #(assoc % :distance-from (postcode/distance-between params (:location %))))
+           (filter filter-range-fn)
+           (sort-by :distance-from))
+      result)))
 
 (defn fetch-general-practitioners-for-org
   ([id] (fetch-general-practitioners-for-org " 2.16.840.1.113883.2.1.3.2.4.18.48 " id))
@@ -241,40 +209,13 @@ file to generate a globally unique reference"
   ashgrove
   (map :name (filter #(str/blank? (:leftParentDate %)) (fetch-general-practitioners-for-org "W95024")))
   (fetch-general-practitioner "G0232157")
-  (->> (search-org "monmouth")
-       (filter :active)
-       (map :name))
-  (search-org-role "monmouth" "RO72")
-  (search-org-role "CF14" "RO72")
-
   @datasource
 
-  (def pc1 (-> (jdbc/execute-one! @datasource
-                                  ["SELECT data::varchar from postcodes where pcd2 = ?"
-                                   "CF14 4HB"])
-               :data
-               (json/read-str :key-fn keyword)))
-  (:OSNRTH1M pc1) (:OSEAST1M pc1)
+  (take 5 (map :name (search-org {:s "bishop" :role "RO72"})))
+  (map #(str (:name %) ":" (int (:distance-from %)) "m") (search-org (merge {:role "RO72" :range-metres 5000} (fetch-postcode "NP25 3NS"))))
+  (search-org {:s "monmouth" :role "RO72" :near {:postcode "NP25 3NS" :range-metres 5000}})
+  (search-org {:s "bishop" :role "RO72" :near (merge (fetch-postcode "CF14 2HB") {:range-metres 5000})})
 
-  (def from-north 213998)
-  (def from-east 350504)
-
-  (take 5 (map :name (structured-org-search {:s "bishop" :role "RO72"})))
-  (structured-org-search {:s "monmouth" :role "RO72" :near {:postcode "NP25 3NS" :range-metres 5000}})
-  (structured-org-search {:s "bishop" :role "RO72" :near (merge (fetch-postcode "CF14 2HB") {:range-metres 5000})})
-  (search-org-distance (merge {:s "bishop" :role "RO72" :range-metres 50000} (fetch-postcode "CF14 2HB")))
-
-  ;; "select data::varchar as org from organisations where name like ? and data->'roles' @> ?::jsonb"
-  (def search-by-distances)
-  search-by-distances
   (connection-pool-stop)
 
-  (jdbc/execute!
-    @datasource
-    [(str "with t as (select o.data::varchar as org,
-  sqrt(pow(?-(pc.data->>'OSNRTH1M')::integer,2) + pow(?-(pc.data->>'OSEAST1M')::integer,2)) as distance
-  from organisations o left join postcodes pc on (o.data->'location'->>'postcode'=pc.PCD2)
-  where name like ? and o.data->'roles' @> ?::jsonb)
-  select * from t" (when false " where distance < ?") " order by distance")
-     (:OSNRTH1M (fetch-postcode "CF14 4XW")) (:OSEAST1M (fetch-postcode "CF14 4XW")) (name-query "Bishop") (role-query "RO72") 50000])
   )

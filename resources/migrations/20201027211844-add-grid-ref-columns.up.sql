@@ -1,0 +1,1 @@
+alter table organisations add column OSNRTH1M integer, add column OSEAST1M integer;
