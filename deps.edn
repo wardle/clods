@@ -18,8 +18,9 @@
            com.wsscode/pathom                  {:mvn/version "2.3.0-alpha9"}
            com.zaxxer/HikariCP                 {:mvn/version "3.4.5"}
            compojure/compojure                 {:mvn/version "1.6.1"}
+
            migratus/migratus                   {:mvn/version "1.2.8"}
-           org.postgresql/postgresql           {:mvn/version "42.2.12.jre7"}
+           org.postgresql/postgresql           {:mvn/version "42.2.18"}
            ring/ring-core                      {:mvn/version "1.8.1"}
            ring/ring-defaults                  {:mvn/version "0.3.2"}
            ring/ring-jetty-adapter             {:mvn/version "1.8.1"}
