@@ -322,7 +322,6 @@
   ;; get one organisation
   (def org (first (take 5 (filter #(= :Organisation (:tag %)) (:content orgs)))))
 
-  (parse-org (zip/xml-zip org))
   (json/write-str (parse-org (zip/xml-zip org)))
 
   (def org

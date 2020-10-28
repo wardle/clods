@@ -9,9 +9,7 @@
   (:import (java.sql Connection)
            (com.zaxxer.hikari HikariDataSource)))
 
-
-
-(def ^javax.sql.DataSource datasource (atom nil))
+(defonce ^javax.sql.DataSource datasource (atom nil))
 
 (defn connection-pool-start [config]
   (let [ds (connection/->pool HikariDataSource config)]
@@ -20,6 +18,12 @@
 
 (defn connection-pool-stop []
   (.close @datasource))
+
+(defn fetch-postcode [pcode]
+  (when-let [pc (:pc (jdbc/execute-one! @datasource
+                                        ["SELECT data::varchar as pc FROM postcodes where pcd2 = ?"
+                                         (postcode/egif pcode)]))]
+    (json/read-str pc :key-fn keyword)))
 
 (defn fetch-org
   "Fetches an organisation by `root` and `identifier` from the data store"
@@ -30,52 +34,118 @@
                                             (str root "|" id)]))]
      (json/read-str org :key-fn keyword))))
 
-(defn search-org
+(defn name-query [s] (str "%" (str/replace (str/upper-case s) #"\s+" "%") "%"))
+
+(defn boundary-query
+  "Return a query and a crude set of coordinates reflecting a square around
+  the coordinates given.
+  Coordinates retuened as northing/easting/northing/easting."
+  [OSNRTH1M OSEAST1M range-metres]
+  (when (and range-metres (> range-metres 0))
+    {:sql    "osnrth1m > ? and oseast1m > ? and osnrth1m < ? and oseast1m < ?"
+     :values [(- OSNRTH1M range-metres) (- OSEAST1M range-metres)
+              (+ OSNRTH1M range-metres) (+ OSEAST1M range-metres)]}))
+
+(defn- search-org
   "Search for an organisation by name"
   [s]
   (if (> (count s) 2)
-    (let [s2 (str "%" (str/replace (str/upper-case s) #"\s+" "%") "%")
-          results (jdbc/execute! @datasource
-                                 ["select data::varchar as org from organisations where name like ?" s2])]
-      (map #(json/read-str (:org %) :key-fn keyword) results))
+    (->> (jdbc/execute! @datasource
+                        ["select data::varchar as org from organisations where name like ?"
+                         (name-query s)])
+         (map #(json/read-str (:org %) :key-fn keyword)))
     []))
 
-(defn search-org-role
-  "Search for an organisation by name or address and role.
-   select id,name from organisations where name like 'CASTLE GATE%' and data->'roles' @> '[{\"id\":\"RO65\", \"active\" : true}]';"
+(defn- search-org-role
+  "Search for an organisation by name or address and role."
   [s role]
   (if (> (count s) 2)
-    (let [s2 (str "%" (str/replace (str/upper-case s) #"\s+" "%") "%")
-          r2 (str "[{\"id\":\"" role "\",\"active\" : true}]")
-          results (jdbc/execute! @datasource
-                                 ["select data::varchar as org from organisations where name like ? and data->'roles' @> ?::jsonb"
-                                  s2, r2])]
-      (map #(json/read-str (:org %) :key-fn keyword) results))
+    (->> (jdbc/execute! @datasource
+                        ["select data::varchar as org from organisations where name like ? and ? = ANY(roles)"
+                         (name-query s), role])
+         (map #(json/read-str (:org %) :key-fn keyword)))
     []))
 
+
+(defn search-org-query
+  "Generate a SQL vector containing SQL and parameters to search for an organisation.
+
+  - s            : name of organisation, searching name, address town and postcode
+  - only-active  : (default true) only return active organisations
+  - role         : role code, e.g. RO72 for general practice.
+  - OSNRTH1M     : grid coordinates if search is to be limited to a geographical region
+  - OSEAST1M     : grid coordinates
+  - range-metres : range from coordinates to constrain search
+  - limit        : limit on number of search results"
+  [{:keys [s only-active role OSNRTH1M OSEAST1M range-metres limit] :or {only-active true}}]
+  (let [bq (boundary-query OSNRTH1M OSEAST1M range-metres)
+        clauses (cond-> []
+                        only-active (conj ["active=?" true])
+                        bq (conj [(:sql bq) (:values bq)])
+                        (not (str/blank? s)) (conj ["name like ?" (name-query s)])
+                        role (conj ["? = ANY(roles)" role]))
+        where-str (when (seq clauses) (apply str " where " (interpose " and " (map first clauses))))]
+    (into [] (flatten [(str
+                         "select o.data::varchar as org,o.osnrth1m, o.oseast1m from organisations o"
+                         where-str
+                         (when limit (str " limit " limit)))
+                       (map second clauses)]))))
+
+(defn- search-org-distance
+  "Search for an organisation.
+  The parameters are as for `search-org-query`."
+  [params]
+  (->> (jdbc/execute! @datasource (search-org-query params))
+       (map #(-> (json/read-str (:org %) :key-fn keyword)
+                 (assoc-in [:location :OSNRTH1M] (:organisations/osnrth1m %))
+                 (assoc-in [:location :OSEAST1M] (:organisations/oseast1m %))))
+       (map #(assoc % :distance-from (postcode/distance-between params (:location %))))
+       (sort-by :distance-from)))
+
+(defn structured-org-search
+  " Search for an active organisation with the given role, results sorted in
+  order of distance from given 'postcode'.
+  Parameters:
+  |- :s           : search text - will search name or address1 or town or postcode
+  |- :role        : role code, optional, e.g. RO72 for GP surgery
+  |- :only-active : default true, whether to only include active organisations
+  |- :near        : specify a 'location' and optional 'range' from which to search
+
+  Near:
+  |- :postcode : postcode of location to centre search
+  |- :OSNRTH1M : northing UK grid reference
+  |- :OSEAST1M : easting UK grid reference
+  |- :range-metres : if given, results will be limited to within this range. "
+  [{:keys [s role only-active near] :or {only-active true} :as opts}]
+  (let [{:keys [postcode OSNRTH1M OSEAST1M range-metres]} near]
+    (cond
+      (and OSNRTH1M OSEAST1M)
+      (search-org-distance (merge opts near))
+      postcode
+      (when-let [pcd (fetch-postcode postcode)]
+        (search-org-distance (merge opts near pcd)))
+      role
+      (search-org-role s role)
+      :else
+      (search-org s))))
+
 (defn fetch-general-practitioners-for-org
-  ([id] (fetch-general-practitioners-for-org "2.16.840.1.113883.2.1.3.2.4.18.48" id))
+  ([id] (fetch-general-practitioners-for-org " 2.16.840.1.113883.2.1.3.2.4.18.48 " id))
   ([root id]
-   (let [results (jdbc/execute! @datasource ["select data::varchar as gp from general_practitioners where organisation = ?"
-                                             (str root "|" id)])]
+   (let [results (jdbc/execute! @datasource ["select data::varchar as gp from general_practitioners where organisation = ? "
+                                             (str root " | " id)])]
      (map #(json/read-str (:gp %) :key-fn keyword) results))))
 
 (defn fetch-general-practitioner
   [id]
   (when-let [gp (:gp (jdbc/execute-one! @datasource
-                                        ["SELECT data::varchar as gp FROM general_practitioners WHERE id = ?"
+                                        ["SELECT data::varchar as gp FROM general_practitioners WHERE id = ? "
                                          id]))]
     (json/read-str gp :key-fn keyword)))
 
 (defn fetch-code [id]
   (jdbc/execute-one! @datasource
-                     ["SELECT id, display_name, code_system FROM codes where id = ?" id]))
-
-(defn fetch-postcode [pcode]
-  (when-let [pc (:pc (jdbc/execute-one! @datasource
-                                        ["SELECT data::varchar as pc FROM postcodes where pcd2 = ?"
-                                         (postcode/egif pcode)]))]
-    (json/read-str pc :key-fn keyword)))
+                     [" SELECT id, display_name, code_system FROM codes where id = ? " id]))
 
 
 (def config {:store                :database
@@ -112,12 +182,16 @@
 (defn insert-organisations
   "Import a batch of organisations."
   [^Connection conn orgs]
-  (with-open [ps (jdbc/prepare conn ["insert into organisations (id,name,active,data) values (?,?,?,?::jsonb) on conflict (id) do update set name = EXCLUDED.name, active= EXCLUDED.active, data = EXCLUDED.data"])]
+  (with-open [ps (jdbc/prepare conn ["insert into organisations (id,name,active,roles,data,osnrth1m, oseast1m)
+  select ? as id,? as name,? as active,? as roles,?::jsonb as data, (pc.data->>'OSNRTH1M')::integer as osnrth1m, (pc.data->>'OSEAST1M')::integer as oseast1m from postcodes pc where PCD2 = ?
+  on conflict (id) do update set name = EXCLUDED.name, active= EXCLUDED.active, roles = EXCLUDED.roles, data = EXCLUDED.data,osnrth1m = EXCLUDED.osnrth1m, oseast1m = EXCLUDED.oseast1m"])]
     (let [v (map #(vector
                     (str (get-in % [:orgId :root]) "|" (get-in % [:orgId :extension]))
                     (str (:name %) " " (get-in % [:location :address1]) " " (get-in % [:location :town]) " " (get-in % [:location :postcode]))
                     (:active %)
-                    (json/write-str %)) orgs)]
+                    (into-array String (map :id (filter :active (:roles %))))
+                    (json/write-str %)
+                    (get-in % [:location :postcode])) orgs)]
       (next.jdbc.prepare/execute-batch! ps v))))
 
 (def general-practitioner-org-oid
@@ -148,13 +222,15 @@ file to generate a globally unique reference"
   ;initialize the database using the 'init.sql' script
   (migratus/init config)
 
+  (migratus/create config "add-grid-ref-columns")
+
   ;list pending migrations
   (migratus/pending-list config)
 
-  (migratus/create config "add-org-name-index")
-
   ;apply pending migrations
   (migratus/migrate config)
+
+  (migratus/rollback config)
 
   (connection-pool-start {:dbtype          "postgresql"
                           :dbname          "ods"
@@ -163,7 +239,7 @@ file to generate a globally unique reference"
   (fetch-org "7A4BV")
   (def ashgrove (fetch-org "2.16.840.1.113883.2.1.3.2.4.18.48" "W95024"))
   ashgrove
-  (fetch-general-practitioners-for-org "W95024")
+  (map :name (filter #(str/blank? (:leftParentDate %)) (fetch-general-practitioners-for-org "W95024")))
   (fetch-general-practitioner "G0232157")
   (->> (search-org "monmouth")
        (filter :active)
@@ -173,8 +249,32 @@ file to generate a globally unique reference"
 
   @datasource
 
-  (jdbc/execute-one! @datasource
-                     ["SELECT data::varchar as gp FROM general_practitioners WHERE id = ?"
-                      "G0109806"])
+  (def pc1 (-> (jdbc/execute-one! @datasource
+                                  ["SELECT data::varchar from postcodes where pcd2 = ?"
+                                   "CF14 4HB"])
+               :data
+               (json/read-str :key-fn keyword)))
+  (:OSNRTH1M pc1) (:OSEAST1M pc1)
+
+  (def from-north 213998)
+  (def from-east 350504)
+
+  (take 5 (map :name (structured-org-search {:s "bishop" :role "RO72"})))
+  (structured-org-search {:s "monmouth" :role "RO72" :near {:postcode "NP25 3NS" :range-metres 5000}})
+  (structured-org-search {:s "bishop" :role "RO72" :near (merge (fetch-postcode "CF14 2HB") {:range-metres 5000})})
+  (search-org-distance (merge {:s "bishop" :role "RO72" :range-metres 50000} (fetch-postcode "CF14 2HB")))
+
+  ;; "select data::varchar as org from organisations where name like ? and data->'roles' @> ?::jsonb"
+  (def search-by-distances)
+  search-by-distances
   (connection-pool-stop)
+
+  (jdbc/execute!
+    @datasource
+    [(str "with t as (select o.data::varchar as org,
+  sqrt(pow(?-(pc.data->>'OSNRTH1M')::integer,2) + pow(?-(pc.data->>'OSEAST1M')::integer,2)) as distance
+  from organisations o left join postcodes pc on (o.data->'location'->>'postcode'=pc.PCD2)
+  where name like ? and o.data->'roles' @> ?::jsonb)
+  select * from t" (when false " where distance < ?") " order by distance")
+     (:OSNRTH1M (fetch-postcode "CF14 4XW")) (:OSEAST1M (fetch-postcode "CF14 4XW")) (name-query "Bishop") (role-query "RO72") 50000])
   )
