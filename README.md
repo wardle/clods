@@ -1,13 +1,16 @@
 # clods
 
+[![Scc Count Badge](https://sloc.xyz/github/wardle/clods)](https://github.com/wardle/clods/)
+[![Scc Cocomo Badge](https://sloc.xyz/github/wardle/clods?category=cocomo&avg-wage=100000)](https://github.com/wardle/clods/)
+
 A web service and set of tools for manipulating UK health and care organisational data
 together with supporting data such as geographical datasets from the ONS (e.g. the 
 NHS postcode directory)
 
-This is designed to provide "location" services down to the granularity of an organisational site
-with more finely-grained location services (e.g. ward, bed) provided by other modules
-as part of a unified concierge location service. Ward and bed location and status data are usually
-provided as part of a patient administrative system rather than reference data services, but
+This is designed to provide "location" services down to the granularity of an organisational site.
+More finely-grained location services (e.g. ward, bed) are provided by other modules
+as part of a unified [concierge location service](https://github.com/wardle/concierge). 
+Ward and bed location and status data are usually provided as part of a patient administrative system rather than reference data services, but
 this aims to provide a seamless application programming interface (API) in order to 
 appropriately record the context of the capture of any clinical data.
 
@@ -30,7 +33,15 @@ public sector data. Unfortunately, even bringing together basic
 geographical data with NHS organisational data requires user registration,
 manual downloads and processing. We need to change this.
 
-# Getting started: importing data
+# Getting started: 
+
+You can get help at the command line by using '--help':
+
+```shell
+clj -M -m com.eldrix.clods.cli --help 
+```
+
+# Importing data
 
 Create a database (default is jdbc:postgresql://localhost/ods)
 
@@ -72,7 +83,8 @@ clj -M -m com.eldrix.clods.cli import-ods-xml /Users/mark/Downloads/hscorgrefdat
 clj -M -m com.eldrix.clods.cli import-ods-xml /Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Archive_20200427.xml
 ```
 
-Download and import NHS general practitioner data. 
+### 3. Download and import NHS general practitioner data. 
+
 For these file types, data files are downloaded automatically.
 
 ```shell
@@ -81,6 +93,12 @@ clj -M -m com.eldrix.clods.cli import-gps
 
 In the future, I hope to automate all of these downloads permitting automated
 subscriptions and updates without manual intervention.
+
+# Running a simple REST-ful server
+
+```text
+clj -M -m com.eldrix.clods.cli serve
+```
 
 # Development / contributing
 
