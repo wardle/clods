@@ -68,7 +68,7 @@
                          (when limit (str " limit " limit)))
                        (map second clauses)]))))
 
-(defn do-search-org
+(defn- do-search-org
   "Search for an organisation.
   Parameters:
   |- :s            : search text - will search name or address1 or town or postcode
@@ -92,6 +92,15 @@
            (filter filter-range-fn)
            (sort-by :distance-from))
       result)))
+
+
+(defn search-org
+  "Search for an organisation."
+  [conn params]
+  (let [{:keys [postcode OSNRTH1M OSEAST1M]} params]
+    (if (and (or (nil? OSNRTH1M) (nil? OSEAST1M)) (not (nil? postcode)))
+      (do-search-org conn (merge (fetch-postcode conn postcode) params))
+      (do-search-org conn params))))
 
 (defn fetch-general-practitioners-for-org
   ([ds id] (fetch-general-practitioners-for-org ds "2.16.840.1.113883.2.1.3.2.4.18.48" id))
@@ -121,14 +130,14 @@
   (get-postcode [_ pc] (fetch-postcode ds pc))
   (get-general-practitioner [_ id] (fetch-general-practitioner ds id))
   (get-general-practitioners-for-org [_ id] (fetch-general-practitioners-for-org ds id))
-  (search-org [this params] (do-search-org ds params)))
+  (search-org [this params] (search-org ds params)))
 
 (def cache-fetch-code (memo/lu fetch-code {} :lu/threshold 256))
 (def cache-fetch-org (memo/lu fetch-org {} :lu/threshold 256))
 (def cache-fetch-postcode (memo/lu fetch-postcode))
 (def cache-fetch-general-practitioner (memo/lu fetch-general-practitioner))
 (def cache-fetch-general-practitioners-for-org (memo/lu fetch-general-practitioners-for-org))
-(def cache-do-search-org (memo/lu do-search-org))
+(def cache-do-search-org (memo/lu search-org))
 
 (deftype CachedOdsStore [^DataSource ds]
   svc/Store
@@ -143,10 +152,11 @@
   [jdbc-url]
   (connection/->pool HikariDataSource {:jdbcUrl         jdbc-url
                                        :maximumPoolSize 10}))
-(defn ^Store new-store [^DataSource ds]
+
+(defn ^Store open-store [^DataSource ds]
   (->OdsStore ds))
 
-(defn ^Store new-cached-store [^DataSource ds]
+(defn ^Store open-cached-store [^DataSource ds]
   (->CachedOdsStore ds))
 
 ;;;;
@@ -232,16 +242,5 @@ file to generate a globally unique reference"
   (take 5 (map :name (do-search-org conn {:s "bishop" :role "RO72"})))
   (map #(str (:name %) ":" (int (:distance-from %)) "m") (do-search-org conn (merge {:role "RO72" :range-metres 5000} (fetch-postcode conn "NP25 3NS"))))
   (do-search-org conn {:s "monmouth" :role "RO72" :near {:postcode "NP25 3NS" :range-metres 5000}})
-  (do-search-org conn {:s "bishop" :role "RO72" :near (merge (fetch-postcode "CF14 2HB") {:range-metres 5000})})
-
-  (connection-pool-stop)
-
-  (fetch-general-practitioners-for-org conn "W93036")
-  ;; active GPs in the GP surgery W93036
-  (->> (cache-fetch-general-practitioners-for-org conn "W93036")
-       (filter #(str/blank? (:closeDate %)))
-       (map :name))
-
-  (def svc (->CachedOdsStore conn))
-  (time (svc/get-org svc "7A4BV"))
+  (do-search-org conn {:s "bishop" :role "RO72" :near (merge (fetch-postcode  conn "CF14 2HB") {:range-metres 5000})})
   )

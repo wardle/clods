@@ -64,7 +64,7 @@
 
 (defn do-serve [{:keys [db port]}]
   (let [ds (store/make-pooled-datasource db)
-        svc (store/new-cached-store ds)]
+        svc (store/open-cached-store ds)]
     (log/info "starting server" {:db db :port port})
     (ws/start-server svc port)))
 

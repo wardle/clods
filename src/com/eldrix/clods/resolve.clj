@@ -228,7 +228,7 @@
 (comment
   (def ds (next.jdbc/get-datasource "jdbc:postgresql://localhost/ods"))
   ds
-  (def st (com.eldrix.clods.store/new-cached-store ds))
+  (def st (com.eldrix.clods.store/open-cached-store ds))
   (svc/get-org st "RWMBV")
   (svc/get-postcode st "NP25 3NS")
 
