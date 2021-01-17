@@ -116,21 +116,35 @@
     (org-succession svc org :predecessors)
     (org-succession svc org :successors)))
 
-(pc/defresolver postcode-resolver
-  "Resolves a postal code \":postalcode/id\""
-  [{:keys [svc] :as env} {:keys [:postalcode/id]}]
-  {::pc/input  #{:postalcode/id}
-   ::pc/output [:organization/id
-                :OSGB36/easting :OSGB36/northing
-                :LSOA11/id]}
-  (if-let [pc (svc/get-postcode svc id)]
-    {:organization/id (str namespace-ods-organisation "#" (:PCT pc))
-     :OSGB36/easting  (:OSEAST1M pc)
-     :OSGB36/northing (:OSNRTH1M pc)
-     :LSOA11/id       (:LSOA11 pc)}
-    nil))
+(def pcode-resolver
+  {::pc/sym     `pcode-resolver
+   ::pc/input   #{:postalcode/id}
+   ::pc/output  [:postalcode/id
+                 :organization/id
+                 :OSGB36/easting :OSGB36/northing
+                 :LSOA11/id]
+   ::pc/resolve (fn [{:keys [svc]} {:keys [:postalcode/id]}]
+                  (when-let [pc (svc/get-postcode svc id)]
+                    {:organization/id (str namespace-ods-organisation "#" (:PCT pc))
+                     :OSGB36/easting  (:OSEAST1M pc)
+                     :OSGB36/northing (:OSNRTH1M pc)
+                     :LSOA11/id       (:LSOA11 pc)}))})
 
-(pc/defresolver org-resolver
+(def postcode-resolver
+  "Resolves a postal code \":postalcode/id\""
+  {::pc/sym     'postcode-resolver
+   ::pc/input   #{:postalcode/id}
+   ::pc/output  [:organization/id
+                 :OSGB36/easting :OSGB36/northing
+                 :LSOA11/id]
+   ::pc/resolve (fn [{:keys [svc]} {:postalcode/keys [id]}]
+                  (when-let [pc (svc/get-postcode svc id)]
+                    {:organization/id (str namespace-ods-organisation "#" (:PCT pc))
+                     :OSGB36/easting  (:OSEAST1M pc)
+                     :OSGB36/northing (:OSNRTH1M pc)
+                     :LSOA11/id       (:LSOA11 pc)}))})
+
+(def org-resolver
   "Resolves an organisation identifier `:organization/id` made up of uri of
   the form uri#id e.g. \"https://fhir.nhs.uk/Id/ods-organization-code#7A4\".
 
@@ -140,47 +154,57 @@
   properties and relationships for an organisation that that provided by the UK ODS.
   The plan is that the vocabulary should use a standardised vocabulary such as
   that from [https://www.w3.org/TR/vocab-org/](https://www.w3.org/TR/vocab-org/)"
-  [{:keys [svc] :as env} {:keys [:organization/id]}]
-  {::pc/input  #{:organization/id}
-   ::pc/output [:organization/identifiers :organization/name :organization/type :organization/active
-                :org.w3.www.ns.prov/wasDerivedFrom          ; see https://www.w3.org/TR/prov-o/#wasDerivedFrom
-                :org.w3.www.2004.02.skos.core/prefLabel
-                :organization/isCommissionedBy :organization/subOrganizationOf]}
-  (let [[uri value] (str/split id #"#")]
-    (when-let [norg (normalize-org (svc/get-org svc value))]
-      {:organization/identifiers               (->> (:identifiers norg)
-                                                    (map #(str (:system %) "#" (:value %))))
-       :organization/name                      (:name norg)
-       :org.w3.www.2004.02.skos.core/prefLabel (:name norg)
-       :organization/type                      (get norg "@type")
-       :organization/active                    (:active norg)
-       :org.w3.www.ns.prov/wasDerivedFrom      (->> (:predecessors norg)
-                                                    (map :target)
-                                                    (map #(str (:system %) "#" (:value %))))
-       :organization/isCommissionedBy          (->> (:relationships norg)
-                                                    (filter :active)
-                                                    (filter (fn [rel] (= (:id rel) "RE4")))
-                                                    (map :target)
-                                                    (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))
-       :organization/subOrganizationOf         (->> (:relationships norg)
-                                                    (filter (fn [rel] (= (:id rel) "RE6")))
-                                                    (filter :active)
-                                                    (map :target)
-                                                    (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))
+  {::pc/sym
+   'org-resolver
 
-(pc/defresolver alias-fhir-uk-org
-  "An alias to map `:uk.nhs.fhir.id.ods-organization-code/id` into `:organization/id`"
-  [{:keys [svc] :as env} {:keys [:uk.nhs.fhir.id.ods-organization-code/id]}]
-  {::pc/input  #{:uk.nhs.fhir.id.ods-organization-code/id}
-   ::pc/output [:organization/id]}
-  {:organization/id (str namespace-ods-organisation "#" id)})
+   ::pc/input
+   #{:organization/id}
 
-(pc/defresolver alias-fhir-uk-site
-  "An alias to map `:uk.nhs.fhir.id.ods-site-code/id` into `:organization/id`"
-  [{:keys [svc] :as env} {:keys [:uk.nhs.fhir.id.ods-site-code/id]}]
-  {::pc/input  #{:uk.nhs.fhir.id.ods-site-code/id}
-   ::pc/output [:organization/id]}
-  {:organization/id (str namespace-ods-site "#" id)})
+   ::pc/output
+   [:organization/identifiers :organization/name :organization/type :organization/active
+    :org.w3.www.ns.prov/wasDerivedFrom                      ; see https://www.w3.org/TR/prov-o/#wasDerivedFrom
+    :org.w3.www.2004.02.skos.core/prefLabel
+    :organization/isCommissionedBy :organization/subOrganizationOf]
+
+   ::pc/resolve
+   (fn [{:keys [svc]} {:organization/keys [id]}]
+     (let [[uri value] (str/split id #"#")]
+       (when-let [norg (normalize-org (svc/get-org svc value))]
+         {:organization/identifiers               (->> (:identifiers norg)
+                                                       (map #(str (:system %) "#" (:value %))))
+          :organization/name                      (:name norg)
+          :org.w3.www.2004.02.skos.core/prefLabel (:name norg)
+          :organization/type                      (get norg "@type")
+          :organization/active                    (:active norg)
+          :org.w3.www.ns.prov/wasDerivedFrom      (->> (:predecessors norg)
+                                                       (map :target)
+                                                       (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))
+          :organization/isCommissionedBy          (->> (:relationships norg)
+                                                       (filter :active)
+                                                       (filter (fn [rel] (= (:id rel) "RE4")))
+                                                       (map :target)
+                                                       (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))
+          :organization/subOrganizationOf         (->> (:relationships norg)
+                                                       (filter (fn [rel] (= (:id rel) "RE6")))
+                                                       (filter :active)
+                                                       (map :target)
+                                                       (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))})
+
+(def alias-fhir-uk-org
+  "Resolves a HL7 FHIR namespaced ODS organization code."
+  {::pc/sym     `alias-fhir-uk-org
+   ::pc/input   #{:uk.nhs.fhir.id/ods-organization-code}
+   ::pc/output  [:organization/id]
+   ::pc/resolve (fn [env {:uk.nhs.fhir.id/keys [ods-organization-code]}]
+                  {:organization/id (str namespace-ods-organisation "#" ods-organization-code)})})
+
+(def alias-fhir-uk-site
+  "Resolves a HL7 FHIR namespaced ODS site code."
+  {::pc/sym     `alias-fhir-uk-site
+   ::pc/input   #{:uk.nhs.fhir.id/ods-site-code}
+   ::pc/output  [:organization/id]
+   ::pc/resolve (fn [env {:uk.nhs.fhir.id/keys [ods-site-code]}]
+                  {:organization/id (str namespace-ods-site "#" ods-site-code)})})
 
 (def registry
   [postcode-resolver org-resolver alias-fhir-uk-org alias-fhir-uk-site])
@@ -218,6 +242,9 @@
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
                [:organization/name :org.w3.www.ns.prov/wasDerivedFrom]}])
 
+  (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
+               [:organization/name {:org.w3.www.ns.prov/wasDerivedFrom [:organization/identifiers :organization/name]}]}])
+
   ;; look up an organisation using a URI (system)/ value identifier and get name and type and suborganisation information
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
                [:organization/name :organization/active :organization/type
@@ -230,11 +257,12 @@
   (parser {} [{[:postalcode/id "CF14 4XW"] [:LSOA11/id]}])
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#W93036"]
                [:organization/name :organization/active :organization/type
-                {:organization/isCommissionedBy [:organization/name]}]}])
+                {:organization/isCommissionedBy [:organization/id :organization/identifiers :organization/name]}]}])
 
-  (parser {} [{[:uk.nhs.fhir.id.ods-organization-code/id "7A4"]
+  (parser {} [{[:uk.nhs.fhir.id/ods-organization-code "7A4"]
                [:organization/name :organization/subOrganizationOf]}])
 
-  (parser {} [{[:uk.nhs.fhir.id.ods-site-code/id "7A4BV"]
-               [:org.w3.www.2004.02.skos.core/prefLabel :organization/subOrganizationOf]}])
+  (parser {} [{[:uk.nhs.fhir.id/ods-site-code "7A4BV"]
+               [:org.w3.www.2004.02.skos.core/prefLabel
+                {:organization/subOrganizationOf [:organization/name]}]}])
   )

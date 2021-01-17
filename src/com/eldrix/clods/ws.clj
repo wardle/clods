@@ -4,6 +4,7 @@
   (:require
     [com.eldrix.clods.svc :as svc]
     [com.eldrix.clods.resolve :as res]
+    [com.eldrix.clods.store :as store]
     [io.pedestal.http :as http]
     [io.pedestal.http.content-negotiation :as conneg]
     [io.pedestal.http.route :as route]
@@ -11,8 +12,7 @@
     [io.pedestal.interceptor.error :as intc-err]
     [cheshire.core :as json]
     [clojure.tools.logging.readable :as log]
-    [ring.util.response :as ring-resp]
-    [com.eldrix.clods.store :as store]))
+    [ring.util.response :as ring-resp]))
 
 
 (def uri->oid {"2.16.840.1.113883.2.1.3.2.4.18.48"          "2.16.840.1.113883.2.1.3.2.4.18.48"
@@ -198,7 +198,6 @@
   (do
     (require '[next.jdbc])
     (require '[next.jdbc.connection :as connection])
-    (require '[com.eldrix.clods.store])
     (require '[io.pedestal.test])
     (defn test-request [verb url]
       (io.pedestal.test/response-for (::http/service-fn @server) verb url))
@@ -216,14 +215,4 @@
   (res/normalize-org org)
   (svc/get-org st "W93036")
   (svc/get-general-practitioner st "G3315839")
-
-  namespace->uri
-  (def test-kw :org.w3.www.ns.prov/prefLabel)
-
-  (ns->uri :org.w3.www.2004.02.skos.core/prefLabel)
-  (def props {:org.w3.www.ns.prov/prefLabel      "UHW"
-              :org.w3.www.ns.prov/wasDerivedFrom [:org.nhs.fhir.id.ods-site-code "RWMBV"]})
-
-  (->> props
-       (map #(vector (ns->uri (first %)) (second %))))
   )
