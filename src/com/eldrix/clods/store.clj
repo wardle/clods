@@ -78,6 +78,8 @@
   |- :OSEAST1M     : easting UK grid reference on which to centre search
   |- :range-metres : if given, results will be limited to within this range. "
   [ds {:keys [s only-active role OSNRTH1M OSEAST1M range-metres limit] :as params}]
+  (when-not (or s (and OSNRTH1M OSEAST1M range-metres))
+    (throw (IllegalArgumentException. "invalid search: must specify search text or location and range.")))
   (let [calculate-distances? (and OSNRTH1M OSEAST1M (pos? OSNRTH1M) (pos? OSEAST1M))
         filter-range-fn (if (and calculate-distances? range-metres (pos-int? range-metres))
                           #(< (:distance-from %) range-metres)
