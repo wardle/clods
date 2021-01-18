@@ -62,11 +62,11 @@
                         (not (str/blank? s)) (conj ["name like ?" (name-query s)])
                         role (conj ["? = ANY(roles)" role]))
         where-str (when (seq clauses) (apply str " where " (interpose " and " (map first clauses))))]
-    (into [] (flatten [(str
-                         "select o.data::varchar as org,o.osnrth1m, o.oseast1m from organisations o"
-                         where-str
-                         (when limit (str " limit " limit)))
-                       (map second clauses)]))))
+    (vec (flatten [(str
+                     "select o.data::varchar as org,o.osnrth1m, o.oseast1m from organisations o"
+                     where-str
+                     (when limit (str " limit " limit)))
+                   (map second clauses)]))))
 
 (defn- do-search-org
   "Search for an organisation.
@@ -90,32 +90,38 @@
                               (assoc-in [:location :OSEAST1M] (:organisations/oseast1m %)))))]
     (if calculate-distances?
       (->> result
-           (map #(assoc % :distance-from (postcode/distance-between params (:location %))))
+           (map #(assoc % :distance-from (int (postcode/distance-between params (:location %)))))
            (filter filter-range-fn)
            (sort-by :distance-from))
       result)))
 
-
-(defn search-org
-  "Search for an organisation."
+(defn parse-params-location
+  "Refines the organisation search params to support high-level location search
+  using postcode and latitude/longitude."
   [conn params]
   (let [{:keys [postcode OSNRTH1M OSEAST1M latitude longitude]} params]
     (cond
       ;; if we've given OS northing/easting coordinates, then use them directly
       (and OSNRTH1M OSEAST1M)
-      (do-search-org conn params)
+      params
       ;; if we're given a UK postcode, lookup OS northing/easting from the postcode
       (and (or (nil? OSNRTH1M) (nil? OSEAST1M)) (not (nil? postcode)))
-      (do-search-org conn (merge (fetch-postcode conn postcode) params))
+      (merge (select-keys (fetch-postcode conn postcode) [:OSNRTH1M :OSEAST1M]) params)
       ;; if we have longitude and latitude, convert to northing/easting
       (and latitude longitude)
       (let [osgb36 (com.eldrix.clods.coords/wgs84->osgb36 latitude longitude)]
-        (do-search-org conn (merge {:OSEAST1M (:OSGB36/easting osgb36)
-                                    :OSNRTH1M (:OSGB36/northing osgb36)}
-                                   params)))
-      ;; otherwise send as-is
+        (merge {:OSEAST1M (:OSGB36/easting osgb36)
+                :OSNRTH1M (:OSGB36/northing osgb36)}
+               params))
+      ;; otherwise leave alone
       :else
-      (do-search-org conn params))))
+      params)))
+
+(defn search-org
+  "Searches for an organisation, with additional support for specifying
+  'location' including UK postcode and latitude/longitude."
+  [conn params]
+  (do-search-org conn (parse-params-location conn params)))
 
 (defn fetch-general-practitioners-for-org
   ([ds id] (fetch-general-practitioners-for-org ds "2.16.840.1.113883.2.1.3.2.4.18.48" id))
@@ -253,6 +259,6 @@ file to generate a globally unique reference"
   (map :name (filter #(str/blank? (:leftParentDate %)) (fetch-general-practitioners-for-org conn "W95024")))
   (fetch-general-practitioner conn "G0232157")
   conn
-
-  (first (search-org conn {:latitude 51.764739 :longitude -3.384543 :range-metres 500}))
-  )
+  (search-org conn {:latitude 51.764739 :longitude -3.384543 :range-metres 50000})
+  (map :name (filter #(= "RO148" (get-in % [:primaryRole :id])) (search-org conn {:latitude 51.764739 :longitude -3.384543 :range-metres 50000})
+  ))
