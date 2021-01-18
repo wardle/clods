@@ -165,8 +165,8 @@
    ::pc/output
    [:organization/identifiers :organization/name :organization/type :organization/active
     :postalcode/id
-    :org.w3.www.ns.prov/wasDerivedFrom                      ; see https://www.w3.org/TR/prov-o/#wasDerivedFrom
-    :org.w3.www.2004.02.skos.core/prefLabel
+    :org.w3.ns.prov/wasDerivedFrom                      ; see https://www.w3.org/TR/prov-o/#wasDerivedFrom
+    :org.w3.2004.02.skos.core/prefLabel
     :organization/isCommissionedBy :organization/subOrganizationOf]
 
    ::pc/resolve
@@ -176,11 +176,11 @@
          {:organization/identifiers               (->> (:identifiers norg)
                                                        (map #(str (:system %) "#" (:value %))))
           :organization/name                      (:name norg)
-          :org.w3.www.2004.02.skos.core/prefLabel (:name norg)
+          :org.w3.2004.02.skos.core/prefLabel (:name norg)
           :postalcode/id                          (get-in norg [:location :postcode])
           :organization/type                      (get norg "@type")
           :organization/active                    (:active norg)
-          :org.w3.www.ns.prov/wasDerivedFrom      (->> (:predecessors norg)
+          :org.w3.ns.prov/wasDerivedFrom      (->> (:predecessors norg)
                                                        (map :target)
                                                        (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))
           :organization/isCommissionedBy          (->> (:relationships norg)
@@ -194,7 +194,8 @@
                                                        (map :target)
                                                        (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))})
 
-
+(def alias-org-suborganization-of
+  (pc/alias-resolver2 :organization/subOrganizationOf :org.w3.ns.org/subOrganizationOf))
 
 (def alias-fhir-uk-org
   "Resolves a HL7 FHIR namespaced ODS organization code."
@@ -217,6 +218,7 @@
    wgs84->osgb36-resolver
    osgb36->wgs84-resolver
    org-resolver
+   alias-org-suborganization-of
    alias-fhir-uk-org alias-fhir-uk-site])
 
 (defn make-parser
@@ -250,10 +252,10 @@
                [:organization/name :organization/subOrganizationOf]}])
 
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
-               [:organization/name :org.w3.www.ns.prov/wasDerivedFrom]}])
+               [:organization/name :org.w3.ns.prov/wasDerivedFrom]}])
 
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
-               [:organization/name {:org.w3.www.ns.prov/wasDerivedFrom [:organization/identifiers :organization/name]}]}])
+               [:organization/name {:org.w3.ns.prov/wasDerivedFrom [:organization/identifiers :organization/name]}]}])
 
   ;; look up an organisation using a URI (system)/ value identifier and get name and type and suborganisation information
   (parser {} [{[:organization/id "https://fhir.nhs.uk/Id/ods-organization-code#7A4BV"]
@@ -273,10 +275,11 @@
                [:organization/name :organization/subOrganizationOf]}])
 
   (parser {} [{[:uk.nhs.fhir.id/ods-site-code "7A4BV"]
-               [:org.w3.www.2004.02.skos.core/prefLabel
-                ;;:OSGB36/easting
-                ;;:OSGB36/northing
+               [:org.w3.2004.02.skos.core/prefLabel
+                :OSGB36/easting
+                :OSGB36/northing
+                :org.w3.ns.prov/wasDerivedFrom
                 :urn.ogc.def.crs.EPSG.4326/latitude
                 :urn.ogc.def.crs.EPSG.4326/longitude
-                {:organization/subOrganizationOf [:organization/name]}]}])
+                {:org.w3.ns.org/subOrganizationOf [:org.w3.2004.02.skos.core/prefLabel]}]}])
   )
