@@ -99,9 +99,22 @@
 (defn search-org
   "Search for an organisation."
   [conn params]
-  (let [{:keys [postcode OSNRTH1M OSEAST1M]} params]
-    (if (and (or (nil? OSNRTH1M) (nil? OSEAST1M)) (not (nil? postcode)))
+  (let [{:keys [postcode OSNRTH1M OSEAST1M latitude longitude]} params]
+    (cond
+      ;; if we've given OS northing/easting coordinates, then use them directly
+      (and OSNRTH1M OSEAST1M)
+      (do-search-org conn params)
+      ;; if we're given a UK postcode, lookup OS northing/easting from the postcode
+      (and (or (nil? OSNRTH1M) (nil? OSEAST1M)) (not (nil? postcode)))
       (do-search-org conn (merge (fetch-postcode conn postcode) params))
+      ;; if we have longitude and latitude, convert to northing/easting
+      (and latitude longitude)
+      (let [osgb36 (com.eldrix.clods.coords/wgs84->osgb36 latitude longitude)]
+        (do-search-org conn (merge {:OSEAST1M (:OSGB36/easting osgb36)
+                                    :OSNRTH1M (:OSGB36/northing osgb36)}
+                                   params)))
+      ;; otherwise send as-is
+      :else
       (do-search-org conn params))))
 
 (defn fetch-general-practitioners-for-org
@@ -179,7 +192,7 @@
   ;;codes (ods/all-codes in)
   [^Connection conn codes]
   (let [v (map #(vector (:id %) (:displayName %) (:codeSystem %)) codes)]
-    (with-open [ps (jdbc/prepare conn ["insert into codes (id,display_name,code_system) values (?,?,?) 
+    (with-open [ps (jdbc/prepare conn ["insert into codes (id,display_name,code_system) values (?,?,?)
     on conflict (id) do update set display_name = EXCLUDED.display_name, code_system = EXCLUDED.code_system"])]
       (prepare/execute-batch! ps v))))
 
@@ -211,7 +224,7 @@ file to generate a globally unique reference"
   even in the ODS archive. We handle that by catching and ignoring foreign key constraints, and therefore
   don't import GPs without a valid organisation."
   [^Connection conn gps]
-  (with-open [ps (jdbc/prepare conn ["insert into general_practitioners (id, name, organisation, data) values (?,?,?,?::jsonb) 
+  (with-open [ps (jdbc/prepare conn ["insert into general_practitioners (id, name, organisation, data) values (?,?,?,?::jsonb)
   on conflict (id) do update set name = EXCLUDED.name, organisation = EXCLUDED.organisation, data = EXCLUDED.data"])]
     (doseq [line gps]
       (try
@@ -222,7 +235,7 @@ file to generate a globally unique reference"
 (defn insert-postcodes
   "Import/update postcode data (NHSPD e.g. nhg20feb.csv) to the datasource `ds` specified."
   [^Connection conn postcodes]
-  (with-open [ps (jdbc/prepare conn ["insert into postcodes (PCD2,PCDS,DATA) values (?,?,?::jsonb) 
+  (with-open [ps (jdbc/prepare conn ["insert into postcodes (PCD2,PCDS,DATA) values (?,?,?::jsonb)
   on conflict (PCD2) do update set PCDS = EXCLUDED.PCDS, DATA=EXCLUDED.DATA"])]
     (prepare/execute-batch! ps postcodes)))
 
@@ -231,7 +244,7 @@ file to generate a globally unique reference"
 (comment
   (def conn (connection/->pool HikariDataSource {:dbtype          "postgresql"
                                                  :dbname          "ods"
-                                                 :maximumPoolSize 10}))
+                                                 :maximumPoolSize 2}))
 
   (fetch-postcode conn "CF14 4XW")
   (fetch-org conn "7A4BV")
@@ -241,8 +254,5 @@ file to generate a globally unique reference"
   (fetch-general-practitioner conn "G0232157")
   conn
 
-  (take 5 (map :name (do-search-org conn {:s "bishop" :role "RO72"})))
-  (map #(str (:name %) ":" (int (:distance-from %)) "m") (do-search-org conn (merge {:role "RO72" :range-metres 5000} (fetch-postcode conn "NP25 3NS"))))
-  (do-search-org conn {:s "monmouth" :role "RO72" :near {:postcode "NP25 3NS" :range-metres 5000}})
-  (do-search-org conn {:s "bishop" :role "RO72" :near (merge (fetch-postcode  conn "CF14 2HB") {:range-metres 5000})})
+  (first (search-org conn {:latitude 51.764739 :longitude -3.384543 :range-metres 500}))
   )

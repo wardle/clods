@@ -1,46 +1,55 @@
 {
- :paths   ["src" "resources" "classes"]
- :deps    {org.clojure/clojure            {:mvn/version "1.10.0"}
-           org.clojure/core.async         {:mvn/version "1.3.610"}
-           org.clojure/data.csv           {:mvn/version "1.0.0"}
-           org.clojure/data.json          {:mvn/version "1.0.0"}
-           org.clojure/data.xml           {:mvn/version "0.2.0-alpha6"}
-           org.clojure/data.zip           {:mvn/version "1.0.0"}
-           org.clojure/tools.logging      {:mvn/version "1.1.0"}
+ :paths     ["src" "resources" "classes"]
+ :deps      {org.clojure/clojure            {:mvn/version "1.10.0"}
+             org.clojure/core.async         {:mvn/version "1.3.610"}
+             org.clojure/data.csv           {:mvn/version "1.0.0"}
+             org.clojure/data.json          {:mvn/version "1.0.0"}
+             org.clojure/data.xml           {:mvn/version "0.2.0-alpha6"}
+             org.clojure/data.zip           {:mvn/version "1.0.0"}
+             org.clojure/tools.logging      {:mvn/version "1.1.0"}
 
-           ch.qos.logback/logback-classic {:mvn/version "1.2.3"}
-           cli-matic/cli-matic            {:mvn/version "0.4.3"}
-           clj-bom/clj-bom                {:mvn/version "0.1.2"}
-           clj-http/clj-http              {:mvn/version "3.11.0"}
-           clj-time/clj-time              {:mvn/version "0.15.2"}
-           com.wsscode/pathom             {:mvn/version "2.3.0"}
-           com.zaxxer/HikariCP            {:mvn/version "3.4.5"}
-           io.pedestal/pedestal.service   {:mvn/version "0.5.8"}
-           io.pedestal/pedestal.jetty     {:mvn/version "0.5.8"}
-           migratus/migratus              {:mvn/version "1.3.3"}
-           org.postgresql/postgresql      {:mvn/version "42.2.18"}
-           seancorfield/next.jdbc         {:mvn/version "1.1.613"}}
+             ch.qos.logback/logback-classic {:mvn/version "1.2.3"}
+             cli-matic/cli-matic            {:mvn/version "0.4.3"}
+             clj-bom/clj-bom                {:mvn/version "0.1.2"}
+             clj-http/clj-http              {:mvn/version "3.11.0"}
+             clj-time/clj-time              {:mvn/version "0.15.2"}
+             com.wsscode/pathom             {:mvn/version "2.3.0"}
+             com.zaxxer/HikariCP            {:mvn/version "3.4.5"}
+             io.pedestal/pedestal.service   {:mvn/version "0.5.8"}
+             io.pedestal/pedestal.jetty     {:mvn/version "0.5.8"}
+             migratus/migratus              {:mvn/version "1.3.3"}
+             org.geotools/gt-main           {:mvn/version "24.2"}
+             org.geotools/gt-epsg-hsql      {:mvn/version "24.2"}
+             org.postgresql/postgresql      {:mvn/version "42.2.18"}
+             seancorfield/next.jdbc         {:mvn/version "1.1.613"}}
 
- :aliases {:test     {:extra-paths ["test" "test/resources"]
-                      :extra-deps  {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
-                                                               :sha     "b6b3193fcc42659d7e46ecd1884a228993441182"}}
-                      :main-opts   ["-m" "cognitect.test-runner"]}
+ :mvn/repos {"osgeo" {:url "https://repo.osgeo.org/repository/release/"}}
 
-           :outdated {:extra-deps {antq/antq {:mvn/version "RELEASE"}}
-                      :main-opts  ["-m" "antq.core"]}
+ :aliases   {:test     {:extra-paths ["test" "test/resources"]
+                        :extra-deps  {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                                                 :sha     "b6b3193fcc42659d7e46ecd1884a228993441182"}}
+                        :main-opts   ["-m" "cognitect.test-runner"]}
 
-           :check    {:extra-deps {athos/clj-check
-                                   {:git/url "https://github.com/athos/clj-check.git"
-                                    :sha     "cd1f25456de5eebda0a69602dd3445905382b3a4"}}
-                      :main-opts  ["-m" "clj-check.check"]}
+             :outdated {:extra-deps {antq/antq {:mvn/version "RELEASE"}}
+                        :main-opts  ["-m" "antq.core"]}
 
-           :lint/kondo
-                     {:extra-deps {clj-kondo/clj-kondo {:mvn/version "RELEASE"}}
-                      :main-opts  ["-m" "clj-kondo.main" "--lint" "src"]}
+             :check    {:extra-deps {athos/clj-check
+                                     {:git/url "https://github.com/athos/clj-check.git"
+                                      :sha     "cd1f25456de5eebda0a69602dd3445905382b3a4"}}
+                        :main-opts  ["-m" "clj-check.check"]}
 
-           :lint/eastwood
-                     {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src"]}]
-                      :extra-deps {jonase/eastwood {:mvn/version "RELEASE"}}}
+             :lint/kondo
+                       {:extra-deps {clj-kondo/clj-kondo {:mvn/version "RELEASE"}}
+                        :main-opts  ["-m" "clj-kondo.main" "--lint" "src"]}
 
-           }
+             :lint/eastwood
+                       {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src"]}]
+                        :extra-deps {jonase/eastwood {:mvn/version "RELEASE"}}}
+
+             :jar      {:extra-deps {seancorfield/depstar {:mvn/version "1.1.128"}}
+                        :main-opts  ["-m" "hf.depstar.jar" "target/clods-v0.1.0.jar"]}
+
+             :uberjar  {:extra-deps {seancorfield/depstar {:mvn/version "1.1.128"}}
+                        :main-opts  ["-m" "hf.depstar.uberjar" "target/clods-full-v0.1.0.jar" "-C" "-m" "com.eldrix.clods.cli"]}
+             }
  }
