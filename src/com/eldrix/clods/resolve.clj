@@ -116,20 +116,6 @@
     (org-succession svc org :predecessors)
     (org-succession svc org :successors)))
 
-(def pcode-resolver
-  {::pc/sym     `pcode-resolver
-   ::pc/input   #{:postalcode/id}
-   ::pc/output  [:postalcode/id
-                 :organization/id
-                 :OSGB36/easting :OSGB36/northing
-                 :LSOA11/id]
-   ::pc/resolve (fn [{:keys [svc]} {:keys [:postalcode/id]}]
-                  (when-let [pc (svc/get-postcode svc id)]
-                    {:organization/id (str namespace-ods-organisation "#" (:PCT pc))
-                     :OSGB36/easting  (:OSEAST1M pc)
-                     :OSGB36/northing (:OSNRTH1M pc)
-                     :LSOA11/id       (:LSOA11 pc)}))})
-
 (def postcode-resolver
   "Resolves a postal code \":postalcode/id\""
   {::pc/sym     'postcode-resolver
@@ -143,6 +129,22 @@
                      :OSGB36/easting  (:OSEAST1M pc)
                      :OSGB36/northing (:OSNRTH1M pc)
                      :LSOA11/id       (:LSOA11 pc)}))})
+
+(def wgs84->osgb36-resolver
+  "Resolves a latitude/longitude as per WGS84 / EPSG 4326."
+  {::pc/sym     'wgs84->osgb36-resolver
+   ::pc/input   #{:urn.ogc.def.crs.EPSG.4326/latitude :urn.ogc.def.crs.EPSG.4326/longitude}
+   ::pc/output  [:OSGB36/easting :OSGB36/northing]
+   ::pc/resolve (fn [_ {:urn.ogc.def.crs.EPSG.4326/keys [latitude longitude]}]
+                  (com.eldrix.clods.coords/wgs84->osgb36 latitude longitude))})
+
+(def osgb36->wgs84-resolver
+  "Resolves a OSGB 36 easting/northing as WGS84 / EPSG4326 latitude/longitude."
+  {::pc/sym     'osgb36->wgs84-resolver
+   ::pc/input   #{:OSGB36/easting :OSGB36/northing}
+   ::pc/output  [:urn.ogc.def.crs.EPSG.4326/latitude :urn.ogc.def.crs.EPSG.4326/longitude]
+   ::pc/resolve (fn [_ {:OSGB36/keys [easting northing]}]
+                  (com.eldrix.clods.coords/osgb36->wgs84 easting northing))})
 
 (def org-resolver
   "Resolves an organisation identifier `:organization/id` made up of uri of
@@ -162,6 +164,7 @@
 
    ::pc/output
    [:organization/identifiers :organization/name :organization/type :organization/active
+    :postalcode/id
     :org.w3.www.ns.prov/wasDerivedFrom                      ; see https://www.w3.org/TR/prov-o/#wasDerivedFrom
     :org.w3.www.2004.02.skos.core/prefLabel
     :organization/isCommissionedBy :organization/subOrganizationOf]
@@ -174,6 +177,7 @@
                                                        (map #(str (:system %) "#" (:value %))))
           :organization/name                      (:name norg)
           :org.w3.www.2004.02.skos.core/prefLabel (:name norg)
+          :postalcode/id                          (get-in norg [:location :postcode])
           :organization/type                      (get norg "@type")
           :organization/active                    (:active norg)
           :org.w3.www.ns.prov/wasDerivedFrom      (->> (:predecessors norg)
@@ -189,6 +193,8 @@
                                                        (filter :active)
                                                        (map :target)
                                                        (map #(hash-map :organization/id (str (:system %) "#" (:value %)))))})))})
+
+
 
 (def alias-fhir-uk-org
   "Resolves a HL7 FHIR namespaced ODS organization code."
@@ -207,7 +213,11 @@
                   {:organization/id (str namespace-ods-site "#" ods-site-code)})})
 
 (def registry
-  [postcode-resolver org-resolver alias-fhir-uk-org alias-fhir-uk-site])
+  [postcode-resolver
+   wgs84->osgb36-resolver
+   osgb36->wgs84-resolver
+   org-resolver
+   alias-fhir-uk-org alias-fhir-uk-site])
 
 (defn make-parser
   [svc]
@@ -231,7 +241,7 @@
   (def st (com.eldrix.clods.store/open-cached-store ds))
   (svc/get-org st "RWMBV")
   (svc/get-postcode st "NP25 3NS")
-
+  (first (svc/search-org st {:postcode "CF14 2HB" :range-metres 5000}))
   (map normalize-org (active-successors st (svc/get-org st "RWMBV")))
 
   (def parser (make-parser st))
@@ -264,5 +274,9 @@
 
   (parser {} [{[:uk.nhs.fhir.id/ods-site-code "7A4BV"]
                [:org.w3.www.2004.02.skos.core/prefLabel
+                ;;:OSGB36/easting
+                ;;:OSGB36/northing
+                :urn.ogc.def.crs.EPSG.4326/latitude
+                :urn.ogc.def.crs.EPSG.4326/longitude
                 {:organization/subOrganizationOf [:organization/name]}]}])
   )
