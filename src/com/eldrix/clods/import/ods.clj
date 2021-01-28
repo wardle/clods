@@ -177,8 +177,22 @@
         (f batch)
         (recur (async/<!! ch))))))
 
+(defn download-ods-xml
+  "Downloads the latest ODS distribution file directly from UK TRUD.
+  We can use the TRUD tooling to automatically download the release (341).
+  This file *should* contain two nested zip files:
+   - archive.zip
+   - fullfile.zip"
+  [api-key]
+  (com.eldrix.trud.core/download-releases api-key [341]))
+
 (comment
   (require '[clojure.repl :refer :all])
+
+  (def api-key "xxx")
+  (require '[com.eldrix.trud.core :as trud])
+  (def ch (trud/download-releases api-key [341]))
+  (clojure.core.async/<!! ch)
 
   ;; The main ODS data is provided in XML format and available for
   ;; download from https://isd.digital.nhs.uk/trud3/user/authenticated/group/0/pack/5/subpack/341/releases
