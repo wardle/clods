@@ -1,11 +1,17 @@
 (ns com.eldrix.clods.import.ods
   (:require
     [clojure.core.async :as async]
+    [clojure.tools.logging.readable :as log]
     [clojure.data.json :as json]
     [clojure.data.xml :as xml]
     [clojure.data.zip.xml :refer [xml-> xml1-> attr= attr text]]
     [clojure.zip :as zip]
-    [clj-bom.core :as bom]))
+    [clj-bom.core :as bom]
+    [com.eldrix.trud.core :as trud]
+    [clojure.java.io :as io])
+  (:import (java.nio.file Path)
+           (java.time LocalDate)
+           (java.nio.file.attribute FileAttribute)))
 
 (def supported-ods-xml-version "2-0-0")
 
@@ -182,17 +188,53 @@
   We can use the TRUD tooling to automatically download the release (341).
   This file *should* contain two nested zip files:
    - archive.zip
-   - fullfile.zip"
-  [api-key]
-  (com.eldrix.trud.core/download-releases api-key [341]))
+   - fullfile.zip
+
+  Returns a map containing an inputstream for each file"
+  ([api-key] (download-ods-xml api-key nil))
+  ([api-key ^LocalDate last-update]
+   (let [ch (trud/download-releases api-key [{:release-identifier 341 :release-date last-update}])
+         release (clojure.core.async/<!! ch)]
+     (when release
+       (log/info "Successfully downloaded ODS XML distribution files.")
+       (let [download-path (:download-path release)
+             archive-path (.resolve download-path "archive.zip")
+             fullfile-zip (.resolve download-path "fullfile.zip")
+             archive (io/input-stream (trud/file-from-zip (.toFile archive-path)))
+             fullfile (io/input-stream (trud/file-from-zip (.toFile fullfile-zip)))]
+         {:archive archive
+          :full-file fullfile-zip})))))
+
+(defn auto-import-organisations
+  "Automatically imports organisational data from the NHS ODS API."
+  [api-key nthreads batch-size f]
+  (when-let [release (download-ods-xml api-key)]
+    (import-organisations (:archive release) nthreads batch-size f)
+    (import-organisations (:full-file release) nthreads batch-size f)))
 
 (comment
   (require '[clojure.repl :refer :all])
 
-  (def api-key "xxx")
-  (require '[com.eldrix.trud.core :as trud])
+  (def api-key "xx")
   (def ch (trud/download-releases api-key [341]))
-  (clojure.core.async/<!! ch)
+  (def release (clojure.core.async/<!! ch))
+  release
+  (def download-path (:download-path release))
+  download-path
+  (def archive-path (.resolve download-path "archive.zip"))
+  archive-path
+  (def archive-inputstream (trud/file-from-zip (.toFile archive-path)))
+  archive-inputstream
+  (clojure.java.io/input-stream archive-inputstream)
+
+  (def archive-unzipped (java.nio.file.Files/createTempDirectory "trud" (make-array FileAttribute 0)))
+  archive-unzipped
+  (trud/unzip (.toFile archive-path) archive-unzipped)
+
+  (def fullfile-path (.resolve download-path "fullfile.zip"))
+  (def fullfile-unzipped (java.nio.file.Files/createTempDirectory "trud" (make-array FileAttribute 0)))
+  (trud/unzip (.toFile archive-path) archive-unzipped)
+
 
   ;; The main ODS data is provided in XML format and available for
   ;; download from https://isd.digital.nhs.uk/trud3/user/authenticated/group/0/pack/5/subpack/341/releases
