@@ -9,7 +9,7 @@
              org.clojure/tools.logging      {:mvn/version "1.1.0"}
 
              com.eldrix/trud                {:git/url "https://github.com/wardle/trud.git"
-                                             :sha     "62e8f01f266713ceaac232c78e6a61249a2606aa"}
+                                             :sha     "5fe36b1d030536800a88a27c917935f31cd09375"}
 
              ch.qos.logback/logback-classic {:mvn/version "1.2.3"}
              cli-matic/cli-matic            {:mvn/version "0.4.3"}

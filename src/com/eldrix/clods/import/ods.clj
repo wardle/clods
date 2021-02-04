@@ -8,6 +8,7 @@
     [clojure.zip :as zip]
     [clj-bom.core :as bom]
     [com.eldrix.trud.core :as trud]
+    [com.eldrix.trud.zip :as trudz]
     [clojure.java.io :as io])
   (:import (java.nio.file Path)
            (java.time LocalDate)
@@ -186,58 +187,45 @@
 (defn download-ods-xml
   "Downloads the latest ODS distribution file directly from UK TRUD.
   We can use the TRUD tooling to automatically download the release (341).
+  If last-update is current, download will be skipped.
   This file *should* contain two nested zip files:
    - archive.zip
    - fullfile.zip
-
-  Returns a map containing an inputstream for each file"
+  Returns a sequence of `java.nio.file.Path`s to the uncompressed XML files."
   ([api-key] (download-ods-xml api-key nil))
   ([api-key ^LocalDate last-update]
-   (let [ch (trud/download-releases api-key [{:release-identifier 341 :release-date last-update}])
-         release (clojure.core.async/<!! ch)]
-     (when release
-       (log/info "Successfully downloaded ODS XML distribution files.")
-       (let [download-path (:download-path release)
-             archive-path (.resolve download-path "archive.zip")
-             fullfile-zip (.resolve download-path "fullfile.zip")
-             archive (io/input-stream (trud/file-from-zip (.toFile archive-path)))
-             fullfile (io/input-stream (trud/file-from-zip (.toFile fullfile-zip)))]
-         {:archive archive
-          :full-file fullfile-zip})))))
+   (let [latest (trud/get-latest api-key "/tmp/trud" 341 last-update)]
+     (if-not (:needsUpdate? latest)
+       (log/info "Skipping download ODS XML distribution files. Already up-to-date")
+       (do (log/info "Successfully downloaded ODS XML distribution files." latest)
+           (let [all-files (trudz/unzip2 [(:archiveFilePath latest)
+                                          ["archive.zip" #"\w+.xml"]
+                                          ["fullfile.zip" #"\w+.xml"]])]
+             (concat (get-in all-files [1 1])
+                     (get-in all-files [2 1]))))))))
 
 (defn auto-import-organisations
   "Automatically imports organisational data from the NHS ODS API."
   [api-key nthreads batch-size f]
-  (when-let [release (download-ods-xml api-key)]
-    (import-organisations (:archive release) nthreads batch-size f)
-    (import-organisations (:full-file release) nthreads batch-size f)))
+  (when-let [xml-files (download-ods-xml api-key)]
+    (doseq [f xml-files]
+      (import-organisations f nthreads batch-size f))))
 
 (comment
   (require '[clojure.repl :refer :all])
 
-  (def api-key "xx")
-  (def ch (trud/download-releases api-key [341]))
-  (def release (clojure.core.async/<!! ch))
-  release
-  (def download-path (:download-path release))
-  download-path
-  (def archive-path (.resolve download-path "archive.zip"))
-  archive-path
-  (def archive-inputstream (trud/file-from-zip (.toFile archive-path)))
-  archive-inputstream
-  (clojure.java.io/input-stream archive-inputstream)
-
-  (def archive-unzipped (java.nio.file.Files/createTempDirectory "trud" (make-array FileAttribute 0)))
-  archive-unzipped
-  (trud/unzip (.toFile archive-path) archive-unzipped)
-
-  (def fullfile-path (.resolve download-path "fullfile.zip"))
-  (def fullfile-unzipped (java.nio.file.Files/createTempDirectory "trud" (make-array FileAttribute 0)))
-  (trud/unzip (.toFile archive-path) archive-unzipped)
+  ;; use the NHS TRUD service to download the files we need.
+  (def api-key (slurp "/home/mark/Dev/trud/api-key.txt"))
+  (def ods-xml (trud/get-latest api-key "/tmp/trud" 341))
+  (def ods-xml-files (trudz/unzip2 (ods-xml-query (:archiveFilePath ods-xml))))
+  (def xml-only (concat (get-in ods-xml-files [1 1])
+                        (get-in ods-xml-files [2 1])))
+  (def xml-files (download-ods-xml api-key))
 
 
   ;; The main ODS data is provided in XML format and available for
   ;; download from https://isd.digital.nhs.uk/trud3/user/authenticated/group/0/pack/5/subpack/341/releases
+  ;; This code assumes distribution downloaded manually:
   (def filename "/Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Full_20200427.xml")
   (def filename "/Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Archive_20200427.xml")
   (manifest filename)
