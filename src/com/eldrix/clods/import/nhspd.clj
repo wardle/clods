@@ -20,11 +20,11 @@
 
 
 (defn import-postcodes
-  "Import batches of postcodes to the channel specified.
+  "Import postcodes to the channel specified.
   Each item formatted as a vector of the format [PCDS PCD2 json-data].
   Parameters:
-    - in : An argument that can be coerced into an input stream (see io/input-stream)
-    - ch : The channel to use
+    - in     : An argument that can be coerced into an input stream (see io/input-stream)
+    - ch     : The channel to use
     - close? : If the channel should be closed when done."
   ([in ch] (import-postcodes in ch true))
   ([in ch close?]

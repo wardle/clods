@@ -4,6 +4,7 @@
     [clojure.data.json :as json]
     [clojure.string :as str]
     [clojure.tools.logging.readable :as log]
+    [com.eldrix.clods.coords :as coords]
     [com.eldrix.clods.postcode :as postcode]
     [com.eldrix.clods.svc :as svc]
     [next.jdbc :as jdbc]
@@ -109,7 +110,7 @@
       (merge (select-keys (fetch-postcode conn postcode) [:OSNRTH1M :OSEAST1M]) params)
       ;; if we have longitude and latitude, convert to northing/easting
       (and latitude longitude)
-      (let [osgb36 (com.eldrix.clods.coords/wgs84->osgb36 latitude longitude)]
+      (let [osgb36 (coords/wgs84->osgb36 latitude longitude)]
         (merge {:OSEAST1M (:OSGB36/easting osgb36)
                 :OSNRTH1M (:OSGB36/northing osgb36)}
                params))
@@ -260,5 +261,5 @@ file to generate a globally unique reference"
   (fetch-general-practitioner conn "G0232157")
   conn
   (search-org conn {:latitude 51.764739 :longitude -3.384543 :range-metres 50000})
-  (map :name (filter #(= "RO148" (get-in % [:primaryRole :id])) (search-org conn {:latitude 51.764739 :longitude -3.384543 :range-metres 50000})
-  ))
+  (map :name (filter #(= "RO148" (get-in % [:primaryRole :id])) (search-org conn {:latitude 51.764739 :longitude -3.384543 :range-metres 50000})))
+  )

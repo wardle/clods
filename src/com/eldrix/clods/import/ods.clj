@@ -6,13 +6,7 @@
     [clojure.data.xml :as xml]
     [clojure.data.zip.xml :refer [xml-> xml1-> attr= attr text]]
     [clojure.zip :as zip]
-    [clj-bom.core :as bom]
-    [com.eldrix.trud.core :as trud]
-    [com.eldrix.trud.zip :as trudz]
-    [clojure.java.io :as io])
-  (:import (java.nio.file Path)
-           (java.time LocalDate)
-           (java.nio.file.attribute FileAttribute)))
+    [clj-bom.core :as bom]))
 
 (def supported-ods-xml-version "2-0-0")
 
@@ -27,8 +21,7 @@
        :publicationType    (xml1-> root :Manifest :PublicationType (attr :value))
        :publicationDate    (xml1-> root :Manifest :PublicationDate (attr :value))
        :contentDescription (xml1-> root :Manifest :ContentDescription (attr :value))
-       :recordCount        (Integer/parseInt (xml1-> root :Manifest :RecordCount (attr :value)))
-       })))
+       :recordCount        (Integer/parseInt (xml1-> root :Manifest :RecordCount (attr :value)))})))
 
 (defn parse-concept
   [code-system code]
@@ -175,53 +168,8 @@
     (async/pipeline nthreads out xf-organisation-xml->map ch)
     out))
 
-(defn import-organisations
-  "Imports batches of organisations calling back function `f` with batches of organisations."
-  [in nthreads batch-size f]
-  (let [ch (stream-organisations in nthreads batch-size)]
-    (loop [batch (async/<!! ch)]
-      (when batch
-        (f batch)
-        (recur (async/<!! ch))))))
-
-(defn download-ods-xml
-  "Downloads the latest ODS distribution file directly from UK TRUD.
-  We can use the TRUD tooling to automatically download the release (341).
-  If last-update is current, download will be skipped.
-  This file *should* contain two nested zip files:
-   - archive.zip
-   - fullfile.zip
-  Returns a sequence of `java.nio.file.Path`s to the uncompressed XML files."
-  ([api-key] (download-ods-xml api-key nil))
-  ([api-key ^LocalDate last-update]
-   (let [latest (trud/get-latest api-key "/tmp/trud" 341 last-update)]
-     (if-not (:needsUpdate? latest)
-       (log/info "Skipping download ODS XML distribution files. Already up-to-date")
-       (do (log/info "Successfully downloaded ODS XML distribution files." latest)
-           (let [all-files (trudz/unzip2 [(:archiveFilePath latest)
-                                          ["archive.zip" #"\w+.xml"]
-                                          ["fullfile.zip" #"\w+.xml"]])]
-             (concat (get-in all-files [1 1])
-                     (get-in all-files [2 1]))))))))
-
-(defn auto-import-organisations
-  "Automatically imports organisational data from the NHS ODS API."
-  [api-key nthreads batch-size f]
-  (when-let [xml-files (download-ods-xml api-key)]
-    (doseq [f xml-files]
-      (import-organisations f nthreads batch-size f))))
-
 (comment
   (require '[clojure.repl :refer :all])
-
-  ;; use the NHS TRUD service to download the files we need.
-  (def api-key (slurp "/home/mark/Dev/trud/api-key.txt"))
-  (def ods-xml (trud/get-latest api-key "/tmp/trud" 341))
-  (def ods-xml-files (trudz/unzip2 (ods-xml-query (:archiveFilePath ods-xml))))
-  (def xml-only (concat (get-in ods-xml-files [1 1])
-                        (get-in ods-xml-files [2 1])))
-  (def xml-files (download-ods-xml api-key))
-
 
   ;; The main ODS data is provided in XML format and available for
   ;; download from https://isd.digital.nhs.uk/trud3/user/authenticated/group/0/pack/5/subpack/341/releases
@@ -238,11 +186,6 @@
 
   (def ch (stream-organisations filename 2 10))
   (async/<!! ch)
-  (def total (atom 0))
-  (import-organisations filename 8 1000
-                        (fn [batch]
-                          (swap! total + (count batch))
-                          (println "\rProcessed " @total)))
 
   ;; these are the individual steps used by metadata and import-organisations
   (def rdr (-> filename
