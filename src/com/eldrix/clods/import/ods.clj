@@ -1,6 +1,7 @@
 (ns com.eldrix.clods.import.ods
   (:require
     [clojure.core.async :as async]
+    [clojure.tools.logging.readable :as log]
     [clojure.data.json :as json]
     [clojure.data.xml :as xml]
     [clojure.data.zip.xml :refer [xml-> xml1-> attr= attr text]]
@@ -20,8 +21,7 @@
        :publicationType    (xml1-> root :Manifest :PublicationType (attr :value))
        :publicationDate    (xml1-> root :Manifest :PublicationDate (attr :value))
        :contentDescription (xml1-> root :Manifest :ContentDescription (attr :value))
-       :recordCount        (Integer/parseInt (xml1-> root :Manifest :RecordCount (attr :value)))
-       })))
+       :recordCount        (Integer/parseInt (xml1-> root :Manifest :RecordCount (attr :value)))})))
 
 (defn parse-concept
   [code-system code]
@@ -168,20 +168,12 @@
     (async/pipeline nthreads out xf-organisation-xml->map ch)
     out))
 
-(defn import-organisations
-  "Imports batches of organisations calling back function `f` with batches of organisations."
-  [in nthreads batch-size f]
-  (let [ch (stream-organisations in nthreads batch-size)]
-    (loop [batch (async/<!! ch)]
-      (when batch
-        (f batch)
-        (recur (async/<!! ch))))))
-
 (comment
   (require '[clojure.repl :refer :all])
 
   ;; The main ODS data is provided in XML format and available for
   ;; download from https://isd.digital.nhs.uk/trud3/user/authenticated/group/0/pack/5/subpack/341/releases
+  ;; This code assumes distribution downloaded manually:
   (def filename "/Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Full_20200427.xml")
   (def filename "/Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Archive_20200427.xml")
   (manifest filename)
@@ -194,11 +186,6 @@
 
   (def ch (stream-organisations filename 2 10))
   (async/<!! ch)
-  (def total (atom 0))
-  (import-organisations filename 8 1000
-                        (fn [batch]
-                          (swap! total + (count batch))
-                          (println "\rProcessed " @total)))
 
   ;; these are the individual steps used by metadata and import-organisations
   (def rdr (-> filename

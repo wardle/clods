@@ -1,6 +1,11 @@
 (ns com.eldrix.clods.import.nhsgp
   "Functionality to import supplementary NHS organisational data not in the
-  standard ODS XML distribution."
+  standard ODS XML distribution.
+
+  Some of this information is available via TRUD subpack 58 - but not all.
+  That release includes only current general practitioners, but we want both
+  current and archived general practitioners. Therefore, we derive these data
+  from a download direct from NHS Digital."
   (:require [clj-http.client :as http]
             [clojure.java.io :as io]
             [clojure.data.csv :as csv]
@@ -93,17 +98,8 @@
     (async/thread (download-ods-file :egparc archive))
     (async/merge [current archive])))
 
-(defn download-general-practitioners
-  "Downloads data on current and archived general practitioners,
-  returning data in batches to the fn `f` specified."
-  [batch-size f]
-  (let [ch (stream-general-practitioners batch-size)]
-    (loop [batch (async/<!! ch)]
-      (when batch
-        (f batch)
-        (recur (async/<!! ch))))))
-
 (comment
   (def gps (stream-general-practitioners 5))
   (async/<!! gps)
+
   )

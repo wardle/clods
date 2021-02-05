@@ -1,68 +1,70 @@
 (ns com.eldrix.clods.cli
   (:gen-class)
   (:require
-    [com.eldrix.clods.import.nhsgp :as nhsgp]
-    [com.eldrix.clods.import.nhspd :as nhspd]
-    [com.eldrix.clods.import.ods :as ods]
+    [com.eldrix.clods.import.core :as im]
     [com.eldrix.clods.store :as store]
     [com.eldrix.clods.migrations :as migrations]
+    [com.eldrix.clods.updatelog :as updatelog]
     [com.eldrix.clods.ws :as ws]
     [clojure.tools.logging :as log]
     [cli-matic.core :refer [run-cmd]]
     [next.jdbc :as jdbc]
-    [clojure.core.async :as async]))
+    [com.eldrix.trud.zip :as trudz]
+    [com.eldrix.clods.import.ods :as ods]))
 
-(defn do-import-postcodes
+(defn import-postcodes
   [{db :db args :_arguments}]
   (log/info "Importing postcodes to " db)
   (let [ds (jdbc/get-datasource db)]
     (with-open [conn (.getConnection ds)]
       (doseq [f args]
         (println "Importing postcodes from:" f "...")
-        (let [ch (async/chan 1 (partition-all 500))]
-          (async/thread (nhspd/import-postcodes f ch))
-          (let [total (async/<!! (async/reduce (fn [total batch] (store/insert-postcodes conn batch)
-                                                 (+ total (count batch)))
-                                               0 ch))]
-            (println "Imported " total " postcodes from '" f "'.")))))))
+        (let [ch (im/stream-postcodes f)
+              total (im/do-batch-count ch (partial store/insert-postcodes conn))]
+          (println "Imported " total " postcodes from '" f "'."))))))
 
-(defn import-all-xml
-  "Imports organisational data from an ODS XML file."
-  [in ds]
-  (with-open [conn (.getConnection ds)]
-    (let [mft (ods/manifest in)]
-      (log/info "Manifest: " mft)
-      (if (= (:version mft) ods/supported-ods-xml-version)
-        (do
-          (store/insert-code-systems conn (ods/all-code-systems in))
-          (store/insert-codes conn (ods/all-codes in))
-          (ods/import-organisations in 8 100 (partial store/insert-organisations conn)))
-        (log/fatal "unsupported ODS XML version. expected" ods/supported-ods-xml-version "got:" (:version mft))))))
-
-(defn do-init-database
+(defn init-database
   [{db :db}]
   (with-open [conn (.getConnection (jdbc/get-datasource db))]
     (migrations/init {:connection conn})))
 
-(defn do-migrate-database
+(defn migrate-database
   [{db :db}]
   (with-open [conn (.getConnection (jdbc/get-datasource db))]
     (migrations/migrate {:connection conn})))
 
-(defn do-import-ods-xml
-  [{db :db args :_arguments}]
-  (let [ds (jdbc/get-datasource db)]
-    (doseq [f args]
-      (println "Importing ODS XML from:" f "...")
-      (import-all-xml f ds))))
-
-(defn do-import-gps [{db :db}]
+(defn download-gps [{db :db}]
   (println "Importing to" db)
   (let [ds (jdbc/get-datasource db)
-        conn (.getConnection ds)]
-    (nhsgp/download-general-practitioners 1000 (partial store/insert-general-practitioners conn))))
+        conn (.getConnection ds)
+        ch (im/stream-general-practitioners)
+        total (im/do-batch-count ch (partial store/insert-general-practitioners conn))]
+    (println "Processed " total " general practitioner records.")))
 
-(defn do-serve [{:keys [db port]}]
+(defn download-ods-xml [{:keys [db api-key cache-dir]}]
+  (let [ds (jdbc/get-datasource db)]
+    (with-open [conn (.getConnection ds)]
+      (let [installed (com.eldrix.clods.updatelog/fetch-installed conn)]
+        (when-let [results (im/download-ods-xml api-key cache-dir (:uk.nhs.trud/item-294 installed))]
+          (when (= 0 (count (:xml-files results)))
+            (throw (ex-info "no XML files identified in ODS XML release! Has the structure changed?" {:paths (:paths results)})))
+          (com.eldrix.clods.updatelog/log-start-update ds "uk.nhs.trud" "item-294" (get-in results [:release :releaseDate]))
+          (doseq [path (:xml-files results)]
+            (let [f (.toFile path)
+                  mft (ods/manifest f)]
+              (log/info "Manifest: " mft)
+              (if-not (= (:version mft) ods/supported-ods-xml-version)
+                (log/fatal "unsupported ODS XML version. expected" ods/supported-ods-xml-version "got:" (:version mft))
+                (do
+                  (store/insert-code-systems conn (ods/all-code-systems f))
+                  (store/insert-codes conn (ods/all-codes f))
+                  (let [ch (ods/stream-organisations f 8 100)
+                        total (im/do-batch-count ch (partial store/insert-organisations conn))]
+                    (log/info "Processed" total "organisations"))))))
+          (com.eldrix.clods.updatelog/log-end-update ds "uk.nhs.trud" "item-294" (get-in results [:release :releaseDate]))
+          (trudz/delete-paths (:paths results)))))))
+
+(defn serve [{:keys [db port]}]
   (let [ds (store/make-pooled-datasource db)
         svc (store/open-cached-store ds)]
     (log/info "starting server" {:db db :port port})
@@ -79,30 +81,37 @@
                  {:command     "serve"
                   :description "Run a server."
                   :opts        [{:option "port" :as "Port on which to run server" :type :int :env "HTTP_PORT" :default 8000}]
-                  :runs        do-serve}
+                  :runs        serve}
                  {:command     "init-database"
                   :description "Initialise the database."
                   :opts        []
-                  :runs        do-init-database}
+                  :runs        init-database}
 
                  {:command     "migrate-database"
                   :description "Migrate the database."
                   :opts        []
-                  :runs        do-migrate-database}
+                  :runs        migrate-database}
 
-                 {:command     "import-ods-xml"
-                  :description "Imports ODS XML data files."
-                  :opts        []
-                  :runs        do-import-ods-xml}
+                 {:command     "download-ods"
+                  :description "Downloads and installs ODS XML data"
+                  :opts        [{:as     "TRUD api-key"
+                                 :option "api-key"
+                                 :type   :slurp}
+                                {:as      "Cache directory"
+                                 :default "/tmp/trud"
+                                 :option  "cache-dir"
+                                 :type    :string}]
+                  :runs        download-ods-xml}
 
-                 {:command     "import-gps"
+                 {:command     "download-gps"
                   :description "Downloads and imports/updates GP data. Always import ODS XML data before this step"
                   :opts        []
-                  :runs        do-import-gps}
+                  :runs        download-gps}
+
                  {:command     "import-postcodes"
                   :description "Imports an NHSPD file"
                   :opts        []
-                  :runs        do-import-postcodes}]})
+                  :runs        import-postcodes}]})
 
 (defn -main [& args]
   (run-cmd args CONFIGURATION))
@@ -120,15 +129,7 @@
   (migrations/init db)
   (def conn (jdbc/get-connection ds))
   (.close conn)
-  (ods/manifest f-full)
-  (store/insert-code-systems conn (ods/all-code-systems f-full))
-  (store/insert-codes conn (ods/all-codes f-full))
-  (ods/import-organisations f-full 4 100 (partial store/insert-organisations conn))
-  (ods/import-organisations f-archive 4 100 (partial store/insert-organisations conn))
-  (nhsgp/download-general-practitioners 100 (partial store/insert-general-practitioners conn))
-
-  (.close conn)
-
+  
   )
 
 

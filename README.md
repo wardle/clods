@@ -43,7 +43,8 @@ clj -M -m com.eldrix.clods.cli --help
 
 # Importing data
 
-Create a database (default is jdbc:postgresql://localhost/ods)
+Create a database (default is jdbc:postgresql://localhost/ods).
+You can change the database in the command-line options.
 
 ```shell
 clj -M -m com.eldrix.clods.cli init-database
@@ -51,9 +52,11 @@ clj -M -m com.eldrix.clods.cli migrate-database
 ```
 
 You must import data in the correct order to preserve
-relational integrity. Unfortunately, it isn't possible (yet)
-to automate the download and import processes. 
-
+relational integrity, particularly for the first import. 
+That means importing postcodes first. 
+It isn't quite so important after the first import for ongoing updates.
+Unfortunately, it does not yet seem possible to automate 
+downloads of the NHS Postcode database.
 
 ### 1. Import NHS postcode data.
 
@@ -73,14 +76,10 @@ Imported  2640655  postcodes from ' /Users/mark/Downloads/NHSPD_FEB_2020_UK_FULL
 
 ### 2. Download and import the NHS ODS XML files (current and archive)
 
-You can download the most recent NHS ODS data from TRUD.
-See [https://isd.digital.nhs.uk/trud3/user/guest/group/0/pack/5/subpack/341/releases](https://isd.digital.nhs.uk/trud3/user/guest/group/0/pack/5/subpack/341/releases)
-
-Unzip the files and then run:
+You will need a TRUD API key. Login to the [NHS Digital TRUD](https://isd.digital.nhs.uk/) and find your API key under your profile. 
 
 ```shell
-clj -M -m com.eldrix.clods.cli import-ods-xml /Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Full_20200427.xml
-clj -M -m com.eldrix.clods.cli import-ods-xml /Users/mark/Downloads/hscorgrefdataxml_data_4.0.0_20200430000001/HSCOrgRefData_Archive_20200427.xml
+clj -M -m com.eldrix.clods.cli download-ods --api-key /path/to/api-key.txt
 ```
 
 ### 3. Download and import NHS general practitioner data. 
@@ -88,17 +87,20 @@ clj -M -m com.eldrix.clods.cli import-ods-xml /Users/mark/Downloads/hscorgrefdat
 For these file types, data files are downloaded automatically.
 
 ```shell
-clj -M -m com.eldrix.clods.cli import-gps
+clj -M -m com.eldrix.clods.cli download-gps
 ```
 
-In the future, I hope to automate all of these downloads permitting automated
-subscriptions and updates without manual intervention.
 
 # Running a simple REST-ful server
 
 ```text
 clj -M -m com.eldrix.clods.cli serve
 ```
+
+# Keeping your data up-to-date
+
+You can re-run the download steps at an interval to automatically get the latest versions of data.
+The only manual step currently necessary is the NHS postcode directory.
 
 # Development / contributing
 

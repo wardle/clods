@@ -35,7 +35,7 @@
   ;initialize the database using the 'init.sql' script
   (migratus/init config)
 
-  (migratus/create config "add-grid-ref-indexes")
+  (migratus/create config "add-update-log")
 
   ;list pending migrations
   (migratus/pending-list config)
