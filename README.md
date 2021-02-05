@@ -41,6 +41,8 @@ You can get help at the command line by using '--help':
 clj -M -m com.eldrix.clods.cli --help 
 ```
 
+The goal is to automate all of the steps here.
+
 # Importing data
 
 Create a database (default is jdbc:postgresql://localhost/ods).
@@ -93,8 +95,8 @@ clj -M -m com.eldrix.clods.cli download-gps
 
 # Running a simple REST-ful server
 
-```text
-clj -M -m com.eldrix.clods.cli serve
+```test
+clj -X:serve
 ```
 
 # Keeping your data up-to-date
@@ -103,6 +105,12 @@ You can re-run the download steps at an interval to automatically get the latest
 The only manual step currently necessary is the NHS postcode directory.
 
 # Development / contributing
+
+Check for outdated dependencies:
+
+```shell
+clj -M:outdated
+```
 
 Perform compilation checks (optional)
 
@@ -115,6 +123,13 @@ Perform linting (optional)
 ```shell 
 clj -M:lint/kondo
 clj -M:lint/eastwood
+```
+
+Build an uberjar and run it.
+
+```shell
+clj -X:uberjar
+java -jar target/clods-full-v0.1.0.jar --help
 ```
 
 Copyright © 2020-21 Eldrix Ltd and Mark Wardle
