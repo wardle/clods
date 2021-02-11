@@ -75,7 +75,11 @@
                  :description "Server and tools for UK organisational data services (ODS)"
                  :version     "0.0.2"}
 
-   :global-opts [{:option "db" :as "JDBC URL to use" :env "DB" :type :string :default "jdbc:postgresql://localhost/ods"}]
+   :global-opts [{:option "db"
+                  :as "JDBC URL to use"
+                  :env "DB"
+                  :type :string
+                  :default "jdbc:postgresql://localhost/ods"}]
 
    :commands    [
                  {:command     "serve"

@@ -1,6 +1,7 @@
 (ns com.eldrix.clods.import.nhspd
   "Provides functionality to import 'NHS Postcode Data'."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.data.csv :as csv]
             [clojure.data.json :as json]
             [clojure.core.async :as async]
@@ -39,10 +40,28 @@
           (run! #(async/>!! ch %))))
    (when close? (async/close! ch))))
 
+(defn get-latest-release
+  "Returns the latest NHSPD release.
+   At the moment, there is no available API for this, so we fake by using a
+   local embedded datafile that can be updated with the latest release date
+  and URL. The NHSPD is currently released quarterly."
+  []
+  (let [releases (edn/read-string (slurp (io/resource "nhspd.edn")))]
+    (first (reverse (sort-by :release releases)))))
+
 (comment
   ;; this is the Feb 2020 release file (928mb)
   (def nhspd "/Users/mark/Downloads/NHSPD_FEB_2020_UK_FULL/Data/nhg20feb.csv")
   (def ch (async/chan))
   (async/thread (import-postcodes nhspd ch))
   (async/<!! ch)
+
+  (def release (get-latest-release))
+  (require '[com.eldrix.trud.cache :as trud])
+  (def temp-file (java.nio.file.Files/createTempFile "nhspd" ".zip" (make-array java.nio.file.attribute.FileAttribute 0)))
+  (:url release)
+  (#'trud/download-url (:url release) temp-file)
+  temp-file
+
+
   )
