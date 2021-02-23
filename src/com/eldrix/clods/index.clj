@@ -13,6 +13,11 @@
 
 (set! *warn-on-reflection* true)
 
+(def hl7-oid-health-and-social-care-organisation-identifier
+  "The default organisation root is the HL7 OID representing a
+  HealthAndSocialCareOrganisationIdentifier"
+  "2.16.840.1.113883.2.1.3.2.4.18.48")
+
 (defn make-organisation-doc
   "Turn an organisation into a Lucene document."
   [org]
@@ -63,11 +68,16 @@
     (DirectoryReader/open directory)))
 
 
-(defn ^Query q-orgId [^String root ^String extension]
+(defn ^Query q-orgId
+  "Make a query for the identifier specified.
+  - root      : (optional) root OID
+  - extension : organisation extension (code)."
+  ([^String extension] (q-orgId hl7-oid-health-and-social-care-organisation-identifier extension))
+  ([^String root ^String extension]
   (-> (BooleanQuery$Builder.)
       (.add (TermQuery. (Term. "root" root)) BooleanClause$Occur/MUST)
       (.add (TermQuery. (Term. "extension" extension)) BooleanClause$Occur/MUST)
-      (.build)))
+      (.build))))
 
 (defn fetch-org
   "Returns NHS ODS data for the organisation specified.
@@ -76,11 +86,14 @@
    - root      : (optional) the identifier root;
                  default '2.16.840.1.113883.2.1.3.2.4.18.48'
    - extension : organisation code; eg. '7A4BV'."
-  ([^IndexSearcher searcher extension] (fetch-org searcher "2.16.840.1.113883.2.1.3.2.4.18.48" extension))
+  ([^IndexSearcher searcher extension] (fetch-org searcher hl7-oid-health-and-social-care-organisation-identifier extension))
   ([^IndexSearcher searcher root extension]
    (when-let [score-doc ^ScoreDoc (first (seq (.-scoreDocs ^TopDocs (.search searcher (q-orgId root extension) 1))))]
      (when-let [doc (.doc searcher (.-doc score-doc))]
        (nippy/thaw (.-bytes (.getBinaryValue doc "data")))))))
+
+(defn make-search-query [q]
+  )
 
 (defn search
   "Search for an organisation.
@@ -102,5 +115,5 @@
   ;; search for an organisation
   (def reader (open-index-reader "/var/tmp/ods"))
   (def searcher (IndexSearcher. reader))
-  (q-orgId "2.16.840.1.113883.2.1.3.2.4.18.48" "BE1EC")
+  (q-orgId "BE1EC")
   (fetch-org searcher "7A4BV"))
