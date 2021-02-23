@@ -7,9 +7,11 @@
   (:import (org.apache.lucene.index Term IndexWriter IndexWriterConfig DirectoryReader IndexWriterConfig$OpenMode IndexReader)
            (org.apache.lucene.store FSDirectory)
            (org.apache.lucene.document Document Field$Store StoredField TextField StringField LatLonPoint)
-           (org.apache.lucene.search IndexSearcher TermQuery TopDocs ScoreDoc BooleanQuery$Builder BooleanClause$Occur Query)
+           (org.apache.lucene.search IndexSearcher TermQuery TopDocs ScoreDoc BooleanQuery$Builder BooleanClause$Occur Query PrefixQuery FuzzyQuery)
            (org.apache.lucene.analysis.standard StandardAnalyzer)
-           (java.nio.file Paths)))
+           (java.nio.file Paths)
+           (org.apache.lucene.analysis.tokenattributes CharTermAttribute)
+           (org.apache.lucene.analysis Analyzer)))
 
 (set! *warn-on-reflection* true)
 
@@ -92,6 +94,54 @@
      (when-let [doc (.doc searcher (.-doc score-doc))]
        (nippy/thaw (.-bytes (.getBinaryValue doc "data")))))))
 
+(defn do-raw-query
+  [^IndexSearcher searcher ^Query q max-hits]
+    (map #(.doc searcher (.-doc %)) (seq (.-scoreDocs ^TopDocs (.search searcher q ^int max-hits)))))
+
+(defn doc->organisation
+  [^Document doc]
+  (nippy/thaw (.-bytes (.getBinaryValue doc "data"))))
+
+(defn- make-token-query
+  [^String token fuzzy]
+  (let [len (count token)
+        term (Term. "name" token)
+        tq (TermQuery. term)]
+    (if (> len 2)
+      (let [builder (BooleanQuery$Builder.)]
+        (.add builder (PrefixQuery. term) BooleanClause$Occur/SHOULD)
+        (if (and fuzzy (> fuzzy 0)) (.add builder (FuzzyQuery. term (min 2 fuzzy)) BooleanClause$Occur/SHOULD)
+                                    (.add builder tq BooleanClause$Occur/SHOULD))
+        (.setMinimumNumberShouldMatch builder 1)
+        (.build builder))
+      tq)))
+
+(defn tokenize
+  "Tokenize the string 's' according the 'analyzer' and field specified."
+  [^Analyzer analyzer ^String field-name ^String s]
+  (with-open [tokenStream (.tokenStream analyzer field-name s)]
+    (let [termAtt (.addAttribute tokenStream CharTermAttribute)]
+      (.reset tokenStream)
+      (loop [has-more (.incrementToken tokenStream)
+             result []]
+        (if-not has-more
+          result
+          (let [term (.toString termAtt)]
+            (recur (.incrementToken tokenStream) (conj result term))))))))
+
+(defn- make-tokens-query
+  ([s] (make-tokens-query s 0))
+  ([s fuzzy]
+   (with-open [analyzer (StandardAnalyzer.)]
+     (when s
+       (let [qs (map #(make-token-query % fuzzy) (tokenize analyzer "name" s))]
+         (if (> (count qs) 1)
+           (let [builder (BooleanQuery$Builder.)]
+             (doseq [q qs]
+               (.add builder q BooleanClause$Occur/MUST))
+             (.build builder))
+           (first qs)))))))
+
 (defn make-search-query [q]
   )
 
@@ -116,4 +166,8 @@
   (def reader (open-index-reader "/var/tmp/ods"))
   (def searcher (IndexSearcher. reader))
   (q-orgId "BE1EC")
-  (fetch-org searcher "7A4BV"))
+  (fetch-org searcher "7A4BV")
+
+  (do-raw-query searcher (q-orgId "RWMBV") 100)
+  (time (filter :active (map doc->organisation (do-raw-query searcher (make-tokens-query "rookwood hosp") 100))))
+  )
