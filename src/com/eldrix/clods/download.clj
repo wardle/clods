@@ -39,9 +39,8 @@
   - :cache-dir   : TRUD cache directory
   - :last-update : (optional) date of last update.
                    If provided, download skipped when no new release exists.
-  - :nthreads    : number of threads to use; default num processors
-  - :batch-size  : batch size for stream of organisations; default 100
-  - :cleanup?    : add a shutdown hook to delete temporary files?
+  - :nthreads    : (optional) number of threads to use; default num processors
+  - :batch-size  : (optional) batch size for stream of organisations; default 100
 
   Results:
   - A map containing the following keys:
@@ -53,8 +52,10 @@
     - :paths         : a sequence of temporary file paths; delete when done.
 
   Code systems are keyed by a tuple of namespace and code. For example:
+  ```
   [\"2.16.840.1.113883.2.1.3.2.4.17.507\" \"RO144\"]
-   - '2.16.840.1.113883.2.1.3.2.4.17.507' : HL7 Organisation Role Type
+  ```
+   - '2.16.840.1.113883.2.1.3.2.4.17.507' : HL7 Organization Role Type
    - 'RO144'                              : Welsh Local Health Board."
   [{:keys [api-key cache-dir ^LocalDate last-update cleanup? nthreads batch-size]
     :or   {nthreads (.availableProcessors (Runtime/getRuntime)) batch-size 100} :as opts}]
@@ -62,8 +63,6 @@
   (when-let [downloaded (do-download api-key cache-dir last-update)]
     (when (= 0 (count (:xml-files downloaded)))
       (throw (ex-info "no XML files identified in ODS XML release! Has structure changed?" {:paths (:paths downloaded)})))
-    (when cleanup? (.addShutdownHook (Runtime/getRuntime)
-                                     (Thread. (ziputils/delete-paths (:paths downloaded)))))
     (loop [xml-file-paths (:xml-files downloaded)           ; loop through and process each XML file
            result {}]
       (let [path (first xml-file-paths)]
@@ -88,10 +87,12 @@
   (def api-key (clojure.string/trim-newline (slurp "/Users/mark/Dev/trud/api-key.txt")))
   api-key
   (def xml-files (do-download api-key "/tmp/trud"))
-  (def ods (download {:api-key api-key :cache-dir "/tmp/trud" :cleanup? true}))
+  (def ods (download {:api-key api-key :cache-dir "/tmp/trud"}))
   (dissoc ods :code-systems :paths)
   (:code-systems ods)
   (count (:code-systems ods))
   (first (:code-systems ods))
   (a/<!! (:organisations ods))
-  )
+  (a/thread (ziputils/delete-paths (:paths ods)))
+
+  (println "Hello World"))
