@@ -3,9 +3,7 @@
 [![Scc Count Badge](https://sloc.xyz/github/wardle/clods)](https://github.com/wardle/clods/)
 [![Scc Cocomo Badge](https://sloc.xyz/github/wardle/clods?category=cocomo&avg-wage=100000)](https://github.com/wardle/clods/)
 
-A web service and set of tools for manipulating UK health and care organisational data
-together with supporting data such as geographical datasets from the ONS (e.g. the 
-NHS postcode directory)
+A web service and set of tools for manipulating UK health and care organisational data.
 
 This is designed to provide "location" services down to the granularity of an organisational site.
 More finely-grained location services (e.g. ward, bed) are provided by other modules
@@ -29,9 +27,7 @@ This service can provides a simple REST-based service or through a graph-like AP
 Public sector data should be open, published and self-describing, with
 mechanisms to permit computability. That means we can write software that
 automatically updates against master indexes of a range of important 
-public sector data. Unfortunately, even bringing together basic 
-geographical data with NHS organisational data requires user registration,
-manual downloads and processing. We need to change this.
+public sector data. 
 
 # Getting started: 
 
@@ -40,8 +36,6 @@ You can get help at the command line by using '--help':
 ```shell
 clj -M -m com.eldrix.clods.cli --help 
 ```
-
-The goal is to automate all of the steps here.
 
 # Importing data
 

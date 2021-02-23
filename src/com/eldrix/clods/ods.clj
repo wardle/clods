@@ -1,12 +1,18 @@
-(ns com.eldrix.clods.import.ods
-  (:require
-    [clojure.core.async :as async]
-    [clojure.tools.logging.readable :as log]
-    [clojure.data.json :as json]
-    [clojure.data.xml :as xml]
-    [clojure.data.zip.xml :refer [xml-> xml1-> attr= attr text]]
-    [clojure.zip :as zip]
-    [clj-bom.core :as bom]))
+(ns com.eldrix.clods.ods
+  "Parsing of NHS ODS XML data files.
+
+   The ODS XML file is made up of four components:
+   1. The manifest.     : access using `manifest`.
+   2. The codesystems.  : access using `all-codesystems`.
+   3. The codes.        : access using `all-codes`.
+   4. The organisations :.access using `stream-organisations`."
+  (:require [clojure.core.async :as async]
+            [clojure.tools.logging.readable :as log]
+            [clojure.data.json :as json]
+            [clojure.data.xml :as xml]
+            [clojure.data.zip.xml :refer [xml-> xml1-> attr= attr text]]
+            [clojure.zip :as zip]
+            [clj-bom.core :as bom]))
 
 (def supported-ods-xml-version "2-0-0")
 
@@ -23,32 +29,32 @@
        :contentDescription (xml1-> root :Manifest :ContentDescription (attr :value))
        :recordCount        (Integer/parseInt (xml1-> root :Manifest :RecordCount (attr :value)))})))
 
-(defn parse-concept
+(defn- parse-concept
   [code-system code]
   {:id          (xml1-> code (attr :id))
    :displayName (xml1-> code (attr :displayName))
    :codeSystem  code-system})
 
-(defn parse-code-system
+(defn- parse-code-system
   [codesystem]
   (let [oid (xml1-> codesystem (attr :oid))]
     {:name  (xml1-> codesystem (attr :name))
      :oid   oid
      :codes (xml-> codesystem :concept (partial parse-concept oid))}))
 
-(defn parse-contact [contact]
+(defn- parse-contact [contact]
   {:type  (xml1-> contact (attr :type))
    :value (xml1-> contact (attr :value))})
 
-(defn parse-contacts [contacts]
+(defn- parse-contacts [contacts]
   (xml-> contacts :Contact parse-contact))
 
-(defn parse-orgid [orgid]
+(defn- parse-orgid [orgid]
   {:root                   (xml1-> orgid (attr :root))
    :assigningAuthorityName (xml1-> orgid (attr :assigningAuthorityName))
    :extension              (xml1-> orgid (attr :extension))})
 
-(defn parse-location [l]
+(defn- parse-location [l]
   {:address1 (xml1-> l :AddrLn1 text)
    :address2 (xml1-> l :AddrLn2 text)
    :town     (xml1-> l :Town text)
@@ -57,34 +63,33 @@
    :country  (xml1-> l :Country text)
    :uprn     (xml1-> l :UPRN text)})
 
-(defn parse-role [role]
+(defn- parse-role [role]
   {:id        (xml1-> role (attr :id))
    :isPrimary (let [v (xml1-> role (attr :primaryRole))] (if v (json/read-str v) false))
    :active    (= "Active" (xml1-> role :Status (attr :value)))
    :startDate (xml1-> role :Date :Start (attr :value))
    :endDate   (xml1-> role :Date :End (attr :value))})
 
-(defn parse-roles [roles]
+(defn- parse-roles [roles]
   (xml-> roles :Role parse-role))
 
-(defn parse-succ [succ]
+(defn- parse-succ [succ]
   {:date        (xml1-> succ :Date :Start (attr :value))
    :type        (xml1-> succ :Type text)
    :target      (xml1-> succ :Target :OrgId parse-orgid)
    :primaryRole (xml1-> succ :Target :PrimaryRoleId (attr :id))})
 
-(defn parse-rel [rel]
-  {
-   :id        (xml1-> rel (attr :id))
+(defn- parse-rel [rel]
+  {:id        (xml1-> rel (attr :id))
    :startDate (xml1-> rel :Date :Start (attr :value))
    :endDate   (xml1-> rel :Date :End (attr :value))
    :active    (= "Active" (xml1-> rel :Status (attr :value)))
    :target    (xml1-> rel :Target :OrgId parse-orgid)})
 
-(defn parse-rels [rels]
+(defn- parse-rels [rels]
   (xml-> rels :Rel parse-rel))
 
-(defn parse-org
+(defn- parse-org
   [org]
   (let [roles (xml-> org :Organisation :Roles parse-roles)
         succession (->> (xml-> org :Organisation :Succs :Succ parse-succ)
