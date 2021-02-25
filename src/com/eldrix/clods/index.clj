@@ -3,15 +3,17 @@
    UK organisational search functionality."
   (:require [clojure.core.async :as a]
             [clojure.string :as str]
+            [com.eldrix.nhspd.core :as nhspd]
             [taoensso.nippy :as nippy])
   (:import (org.apache.lucene.index Term IndexWriter IndexWriterConfig DirectoryReader IndexWriterConfig$OpenMode IndexReader)
            (org.apache.lucene.store FSDirectory)
-           (org.apache.lucene.document Document Field$Store StoredField TextField StringField LatLonPoint)
-           (org.apache.lucene.search IndexSearcher TermQuery TopDocs ScoreDoc BooleanQuery$Builder BooleanClause$Occur Query PrefixQuery FuzzyQuery)
+           (org.apache.lucene.document Document Field$Store StoredField TextField StringField LatLonPoint LatLonDocValuesField)
+           (org.apache.lucene.search IndexSearcher TermQuery TopDocs ScoreDoc BooleanQuery$Builder BooleanClause$Occur Query PrefixQuery FuzzyQuery Sort)
            (org.apache.lucene.analysis.standard StandardAnalyzer)
            (java.nio.file Paths)
            (org.apache.lucene.analysis.tokenattributes CharTermAttribute)
-           (org.apache.lucene.analysis Analyzer)))
+           (org.apache.lucene.analysis Analyzer)
+           (com.eldrix.nhspd.core NHSPD)))
 
 (set! *warn-on-reflection* true)
 
@@ -22,8 +24,10 @@
 
 (defn make-organisation-doc
   "Turn an organisation into a Lucene document."
-  [org]
-  (let [doc (doto (Document.)
+  [nhspd org]
+  (let [[lat long] (nhspd/fetch-wgs84 nhspd (get-in org [:location :postcode]))
+        org' (if (and lat long) (assoc-in org [:location :latlong] [lat long]) org)
+        doc (doto (Document.)
               (.add (StringField. "root" ^String (get-in org [:orgId :root]) Field$Store/NO))
               (.add (StringField. "extension" ^String (get-in org [:orgId :extension]) Field$Store/NO))
               (.add (TextField. "name" (:name org) Field$Store/YES))
@@ -35,13 +39,16 @@
                                                  (get-in org [:location :postcode])
                                                  (get-in org [:location :country])])
                                   Field$Store/NO))
-              (.add (StoredField. "data" ^bytes (nippy/freeze org))))]
+              (.add (StoredField. "data" ^bytes (nippy/freeze org'))))]
+    (when (and lat long)
+      (.add doc (LatLonPoint. "latlon" lat long))
+      (.add doc (LatLonDocValuesField. "latlon" lat long)))
     (doseq [role (:roles org)]
       (when (:active role) (.add doc (StringField. "role" ^String (:id role) Field$Store/NO))))
     doc))
 
-(defn write-batch! [^IndexWriter writer orgs]
-  (dorun (map #(.addDocument writer (make-organisation-doc %)) orgs))
+(defn write-batch! [^IndexWriter writer nhspd orgs]
+  (dorun (map (fn [org] (.updateDocument writer (Term. "id" (str (get-in org [:orgId :root]) "#" (get-in org [:orgId :extension]))) (make-organisation-doc nhspd org))) orgs))
   (.commit writer))
 
 (defn ^IndexWriter open-index-writer
@@ -54,13 +61,13 @@
 
 (defn build-index
   "Build an index from NHS ODS data streamed on the channel specified."
-  [ch out]
+  [^NHSPD nhspd ch out]
   (with-open [writer (open-index-writer out)]
     (a/<!!                                                  ;; block until pipeline complete
       (a/pipeline                                           ;; pipeline for side-effects
         (.availableProcessors (Runtime/getRuntime))         ;; parallelism factor
         (doto (a/chan) (a/close!))                          ;; output channel - /dev/null
-        (map (partial write-batch! writer))
+        (map (partial write-batch! writer nhspd))
         ch))
     (.forceMerge writer 1)))
 
@@ -69,17 +76,16 @@
   (let [directory (FSDirectory/open (Paths/get filename (into-array String [])))]
     (DirectoryReader/open directory)))
 
-
 (defn ^Query q-orgId
   "Make a query for the identifier specified.
   - root      : (optional) root OID
   - extension : organisation extension (code)."
   ([^String extension] (q-orgId hl7-oid-health-and-social-care-organisation-identifier extension))
   ([^String root ^String extension]
-  (-> (BooleanQuery$Builder.)
-      (.add (TermQuery. (Term. "root" root)) BooleanClause$Occur/MUST)
-      (.add (TermQuery. (Term. "extension" extension)) BooleanClause$Occur/MUST)
-      (.build))))
+   (-> (BooleanQuery$Builder.)
+       (.add (TermQuery. (Term. "root" root)) BooleanClause$Occur/MUST)
+       (.add (TermQuery. (Term. "extension" extension)) BooleanClause$Occur/MUST)
+       (.build))))
 
 (defn fetch-org
   "Returns NHS ODS data for the organisation specified.
@@ -95,17 +101,40 @@
        (nippy/thaw (.-bytes (.getBinaryValue doc "data")))))))
 
 (defn do-raw-query
-  [^IndexSearcher searcher ^Query q max-hits]
-    (map #(.doc searcher (.-doc %)) (seq (.-scoreDocs ^TopDocs (.search searcher q ^int max-hits)))))
+  ([^IndexSearcher searcher ^Query q max-hits ^Sort sort]
+   (map #(.doc searcher (.-doc ^ScoreDoc %)) (seq (.-scoreDocs ^TopDocs (.search searcher q ^int max-hits sort)))))
+  ([^IndexSearcher searcher ^Query q max-hits]
+   (map #(.doc searcher (.-doc ^ScoreDoc %)) (seq (.-scoreDocs ^TopDocs (.search searcher q ^int max-hits))))))
 
 (defn doc->organisation
   [^Document doc]
   (nippy/thaw (.-bytes (.getBinaryValue doc "data"))))
 
-(defn- make-token-query
-  [^String token fuzzy]
+(defn q-or
+  [queries]
+  (case (count queries)
+    0 nil
+    1 (first queries)
+    (let [builder (BooleanQuery$Builder.)]
+      (doseq [^Query query queries]
+        (.add builder query BooleanClause$Occur/SHOULD))
+      (.build builder))))
+
+(defn q-and
+  [queries]
+  (case (count queries)
+    0 nil
+    1 (first queries)
+    (let [builder (BooleanQuery$Builder.)]
+      (doseq [query queries]
+        (.add builder ^Query query BooleanClause$Occur/MUST))
+      (.build builder))))
+
+(defn- q-token
+  "Creates a query on field  using the token specified."
+  [^String field-name ^String token fuzzy]
   (let [len (count token)
-        term (Term. "name" token)
+        term (Term. field-name token)
         tq (TermQuery. term)]
     (if (> len 2)
       (let [builder (BooleanQuery$Builder.)]
@@ -129,38 +158,105 @@
           (let [term (.toString termAtt)]
             (recur (.incrementToken tokenStream) (conj result term))))))))
 
-(defn- make-tokens-query
-  ([s] (make-tokens-query s 0))
-  ([s fuzzy]
+(defn- q-tokens
+  "Creates a query for field specified using the string specified."
+  ([field-name s] (q-tokens field-name s 0))
+  ([field-name s fuzzy]
    (with-open [analyzer (StandardAnalyzer.)]
-     (when s
-       (let [qs (map #(make-token-query % fuzzy) (tokenize analyzer "name" s))]
-         (if (> (count qs) 1)
-           (let [builder (BooleanQuery$Builder.)]
-             (doseq [q qs]
-               (.add builder q BooleanClause$Occur/MUST))
-             (.build builder))
-           (first qs)))))))
+     (when s (q-and (map #(q-token field-name % fuzzy) (tokenize analyzer field-name s)))))))
 
-(defn make-search-query [q]
-  )
+(defn q-name
+  ([s] (q-name s 0))
+  ([s fuzzy]
+   (q-tokens "name" s fuzzy)))
+
+(defn sort-by-distance
+  "Creates an Apache Lucene 'Sort' based on distance from the location given."
+  ([[lat lon]] (sort-by-distance lat lon))
+  ([lat lon]
+   (Sort. (LatLonDocValuesField/newDistanceSort "latlon" lat lon))))
+
+(defn q-location
+  "Creates a query for an organisation within 'distance' metres of the
+  location specified."
+  ([[lat lon] distance] (q-location lat lon distance))
+  ([lat lon distance]
+   (LatLonPoint/newDistanceQuery "latlon" lat lon distance)))
+
+(defn q-active
+  "A query to limit to active organisations"
+  []
+  (TermQuery. (Term. "active" "true")))
+
+(defn q-roles
+  "Query for the role(s) specified. "
+  [roles]
+  (cond
+    (string? roles)
+    (TermQuery. (Term. "role" ^String roles))
+    (and (coll? roles) (= 1 (count roles)))
+    (TermQuery. (Term. "role" ^String (first roles)))
+    :else
+    (let [builder (BooleanQuery$Builder.)]
+      (doseq [role roles]
+        (.add builder (TermQuery. (Term. "role" ^String role)) BooleanClause$Occur/MUST))
+      (.build builder))))
+
+(defn make-search-query
+  "Create a search query for an organisation.
+  Parameters:
+  - s             : search for name of organisation
+  - fuzzy         : fuzziness factor (0-2)
+  - only-active   : (default true) only return active organisations
+  - roles         : role codes, e.g. RO72 for general practice.
+  - from-location : search from location specified
+       - :lat     : latitude (WGS84)
+       - :lon     : longitude (WGS84)
+       - :range   : range in metres (optional)
+  - limit         : limit on number of search results"
+  [{:keys [s fuzzy only-active? from-location roles _limit] :or {fuzzy 0 only-active? true}}]
+  (let [{:keys [lat lon range]} from-location]
+    (q-and (cond-> []
+                   s
+                   (conj (q-name s fuzzy))
+
+                   roles
+                   (conj (q-roles roles))
+
+                   only-active?
+                   (conj (q-active))
+
+                   (and lat lon range)
+                   (conj (q-location lat lon range))))))
 
 (defn search
   "Search for an organisation.
   Parameters:
    - searcher : Lucene IndexSearcher
-   - q        : a map containing your query terms."
-  [^IndexSearcher searcher q]
-  )
+   - q        : a map containing your query terms"
+  [^IndexSearcher searcher {:keys [_s _only-active? _roles from-location limit] :or {limit 1000} :as q}]
+  (let [query (make-search-query q)
+        {:keys [lat lon]} from-location
+        result (if (and lat lon)
+                 (do-raw-query searcher query limit (sort-by-distance lat lon))
+                 (do-raw-query searcher query limit))]
+    (map doc->organisation result)))
 
 (comment
   (def api-key (str/trim-newline (slurp "/Users/mark/Dev/trud/api-key.txt")))
   api-key
   ;; download and build the index
   (require '[com.eldrix.clods.download :as dl])
-  (def ods (dl/download {:api-key api-key :cache-dir "/tmp/trud" :batch-size 10000}))
+  (def ods (dl/download {:api-key api-key :cache-dir "/tmp/trud" :batch-size 1000}))
+
+  ;; integrate NHS postcode directory
+  (require '[com.eldrix.nhspd.core :as nhspd])
+  (def nhspd (nhspd/open-index "/tmp/nhspd-2021-02"))
+  (nhspd/fetch-postcode nhspd "CF14 4xw")
+  (nhspd/fetch-wgs84 nhspd "CF14 4XW")
+
   (first (a/<!! (:organisations ods)))
-  (build-index (:organisations ods) "/var/tmp/ods")
+  (build-index nhspd (:organisations ods) "/var/tmp/ods")
 
   ;; search for an organisation
   (def reader (open-index-reader "/var/tmp/ods"))
@@ -169,5 +265,26 @@
   (fetch-org searcher "7A4BV")
 
   (do-raw-query searcher (q-orgId "RWMBV") 100)
-  (time (filter :active (map doc->organisation (do-raw-query searcher (make-tokens-query "rookwood hosp") 100))))
+  (time (filter :active (map doc->organisation (do-raw-query searcher (q-tokens "rookwood hosp") 100))))
+  (LatLonPoint/newDistanceQuery "latlon" 51.506764 3.1893604 1000)
+  (map doc->organisation (do-raw-query searcher (LatLonPoint/newDistanceQuery "latlon" 52.71050609941029 -5.268334343112894 (* 20 1000)) 10))
+  (LatLonDocValuesField/newDistanceSort "latlon" 52.71050609941029 -5.268334343112894)
+  (map doc->organisation
+       (do-raw-query searcher
+                     (LatLonPoint/newDistanceQuery "latlon" 52.71050609941029 -5.268334343112894 (* 20 1000))
+                     5
+                     (Sort. (LatLonDocValuesField/newDistanceSort "latlon" 52.71050609941029 -5.268334343112894))))
+
+  ; 51.506764 , -3.1893604
+  (nhspd/fetch-wgs84 nhspd "CF14 4XW")
+  (def monmouth (nhspd/fetch-wgs84 nhspd "np253eq"))
+  monmouth
+  (def cf144xw (nhspd/fetch-wgs84 nhspd "CF14 4XW"))
+
+  (map doc->organisation (do-raw-query searcher (q-and [(q-role "RO72") (q-location monmouth 10000)]) 10 (sort-by-distance monmouth)))
+  (map doc->organisation (do-raw-query searcher (q-and [(q-role "RO72") (q-location cf144xw 10000)]) 2 (sort-by-distance cf144xw)))
+  (let [[lat lon] (nhspd/fetch-wgs84 nhspd "np25 3ns")]
+    (search searcher {:s "caslte gate" :fuzzy 2 :from-location {:lat lat :lon lon} :roles "RO72"}))
+
   )
+

@@ -7,7 +7,7 @@
            org.clojure/tools.logging        {:mvn/version "1.1.0"}
 
            com.eldrix/nhspd                 {:git/url "https://github.com/wardle/nhspd.git"
-                                             :sha     "1678334a05f87ed7f26d35f14134b1478827aa90"}
+                                             :sha     "5b586ee2d80b8900a5160ed75725d811647c6ccd"}
            com.eldrix/trud                  {:git/url "https://github.com/wardle/trud.git"
                                              :sha     "4dc20687de11e817ce2d949eceb024678467debc"}
 
