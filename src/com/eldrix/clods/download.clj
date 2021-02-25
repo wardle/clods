@@ -57,7 +57,7 @@
   ```
    - '2.16.840.1.113883.2.1.3.2.4.17.507' : HL7 Organization Role Type
    - 'RO144'                              : Welsh Local Health Board."
-  [{:keys [api-key cache-dir ^LocalDate last-update cleanup? nthreads batch-size]
+  [{:keys [api-key cache-dir ^LocalDate last-update nthreads batch-size]
     :or   {nthreads (.availableProcessors (Runtime/getRuntime)) batch-size 100} :as opts}]
   (log/info "preparing to download and process latest ODS XML distribution" {:cache-dir cache-dir :nthreads nthreads :batch-size batch-size})
   (when-let [downloaded (do-download api-key cache-dir last-update)]
@@ -94,5 +94,4 @@
   (first (:code-systems ods))
   (a/<!! (:organisations ods))
   (a/thread (ziputils/delete-paths (:paths ods)))
-
-  (println "Hello World"))
+  )
