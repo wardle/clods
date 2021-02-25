@@ -22,12 +22,21 @@
   HealthAndSocialCareOrganisationIdentifier"
   "2.16.840.1.113883.2.1.3.2.4.18.48")
 
+(defn ^String make-org-id [org]
+  (str (get-in org [:orgId :root]) "#" (get-in org [:orgId :extension])))
+
+
 (defn make-organisation-doc
-  "Turn an organisation into a Lucene document."
+  "Turn an organisation into a Lucene document.
+  At the moment, we use postcode to derive WGS84 coordinates (lat/lon) for an
+  organisation. In the future, when ODS contains UPRNs for organisations, we
+  could use UPRN to derive geographical coordinates."
   [nhspd org]
   (let [[lat long] (nhspd/fetch-wgs84 nhspd (get-in org [:location :postcode]))
-        org' (if (and lat long) (assoc-in org [:location :latlong] [lat long]) org)
+        org' (if (and lat long) (assoc-in org [:location :latlon] [lat long]) org)
         doc (doto (Document.)
+              (.add (StringField. "id" (make-org-id org) Field$Store/NO))
+              (.add (StoredField. "data" ^bytes (nippy/freeze org')))
               (.add (StringField. "root" ^String (get-in org [:orgId :root]) Field$Store/NO))
               (.add (StringField. "extension" ^String (get-in org [:orgId :extension]) Field$Store/NO))
               (.add (TextField. "name" (:name org) Field$Store/YES))
@@ -37,9 +46,7 @@
                                                  (get-in org [:location :address2])
                                                  (get-in org [:location :county])
                                                  (get-in org [:location :postcode])
-                                                 (get-in org [:location :country])])
-                                  Field$Store/NO))
-              (.add (StoredField. "data" ^bytes (nippy/freeze org'))))]
+                                                 (get-in org [:location :country])]) Field$Store/NO)))]
     (when (and lat long)
       (.add doc (LatLonPoint. "latlon" lat long))
       (.add doc (LatLonDocValuesField. "latlon" lat long)))
@@ -48,7 +55,7 @@
     doc))
 
 (defn write-batch! [^IndexWriter writer nhspd orgs]
-  (dorun (map (fn [org] (.updateDocument writer (Term. "id" (str (get-in org [:orgId :root]) "#" (get-in org [:orgId :extension]))) (make-organisation-doc nhspd org))) orgs))
+  (dorun (map (fn [org] (.updateDocument writer (Term. "id" (make-org-id org)) (make-organisation-doc nhspd org))) orgs))
   (.commit writer))
 
 (defn ^IndexWriter open-index-writer
