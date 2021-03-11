@@ -31,7 +31,7 @@
   At the moment, we use postcode to derive WGS84 coordinates (lat/lon) for an
   organisation. In the future, when ODS contains UPRNs for organisations, we
   could use UPRN to derive geographical coordinates."
-  [nhspd org]
+  [^NHSPD nhspd org]
   (let [[lat long] (nhspd/fetch-wgs84 nhspd (get-in org [:location :postcode]))
         org' (if (and lat long) (assoc-in org [:location :latlon] [lat long]) org)
         doc (doto (Document.)
@@ -94,6 +94,15 @@
        (.add (TermQuery. (Term. "extension" extension)) BooleanClause$Occur/MUST)
        (.build))))
 
+(defn do-query [^IndexSearcher searcher ^Query q max-hits]
+  (let [results (seq (.-scoreDocs ^TopDocs (.search searcher q max-hits)))]
+    (map #(.doc searcher (.-doc %)) results)))
+
+(defn doc->organisation
+  "Deserialize a Lucene document into an ODS organisation."
+  [^Document doc]
+  (nippy/thaw (.-bytes (.getBinaryValue doc "data"))))
+
 (defn fetch-org
   "Returns NHS ODS data for the organisation specified.
   Parameters:
@@ -105,17 +114,13 @@
   ([^IndexSearcher searcher root extension]
    (when-let [score-doc ^ScoreDoc (first (seq (.-scoreDocs ^TopDocs (.search searcher (q-orgId root extension) 1))))]
      (when-let [doc (.doc searcher (.-doc score-doc))]
-       (nippy/thaw (.-bytes (.getBinaryValue doc "data")))))))
+       (doc->organisation doc)))))
 
 (defn do-raw-query
   ([^IndexSearcher searcher ^Query q max-hits ^Sort sort]
    (map #(.doc searcher (.-doc ^ScoreDoc %)) (seq (.-scoreDocs ^TopDocs (.search searcher q ^int max-hits sort)))))
   ([^IndexSearcher searcher ^Query q max-hits]
    (map #(.doc searcher (.-doc ^ScoreDoc %)) (seq (.-scoreDocs ^TopDocs (.search searcher q ^int max-hits))))))
-
-(defn doc->organisation
-  [^Document doc]
-  (nippy/thaw (.-bytes (.getBinaryValue doc "data"))))
 
 (defn q-or
   [queries]
@@ -138,7 +143,7 @@
       (.build builder))))
 
 (defn- q-token
-  "Creates a query on field  using the token specified."
+  "Creates a query on the named field using the token specified."
   [^String field-name ^String token fuzzy]
   (let [len (count token)
         term (Term. field-name token)
@@ -213,10 +218,7 @@
   "Create a search query for an organisation.
   Parameters:
   - s             : search for name of organisation
-  - fuzzy         : fuzziness factor (0-2)
-  - only-active   : (default true) only return active organisations
-  - roles         : role codes, e.g. RO72 for general practice.
-  - from-location : search from location specified
+  - fuzzy         : fuzziness factor (0-2)serve
        - :lat     : latitude (WGS84)
        - :lon     : longitude (WGS84)
        - :range   : range in metres (optional)
@@ -272,7 +274,7 @@
   (fetch-org searcher "7A4BV")
 
   (do-raw-query searcher (q-orgId "RWMBV") 100)
-  (time (filter :active (map doc->organisation (do-raw-query searcher (q-tokens "rookwood hosp") 100))))
+  (time (filter :active (map doc->organisation (do-raw-query searcher (q-tokens "name" "rookwood hosp") 100))))
   (LatLonPoint/newDistanceQuery "latlon" 51.506764 3.1893604 1000)
   (map doc->organisation (do-raw-query searcher (LatLonPoint/newDistanceQuery "latlon" 52.71050609941029 -5.268334343112894 (* 20 1000)) 10))
   (LatLonDocValuesField/newDistanceSort "latlon" 52.71050609941029 -5.268334343112894)
@@ -288,9 +290,11 @@
   monmouth
   (def cf144xw (nhspd/fetch-wgs84 nhspd "CF14 4XW"))
 
-  (map doc->organisation (do-raw-query searcher (q-and [(q-role "RO72") (q-location monmouth 10000)]) 10 (sort-by-distance monmouth)))
-  (map doc->organisation (do-raw-query searcher (q-and [(q-role "RO72") (q-location cf144xw 10000)]) 2 (sort-by-distance cf144xw)))
-  (let [[lat lon] (nhspd/fetch-wgs84 nhspd "np25 3ns")]
+  (map doc->organisation (do-raw-query searcher (q-and [(q-roles "RO72") (q-location monmouth 10000)]) 10 (sort-by-distance monmouth)))
+  (map doc->organisation (do-raw-query searcher (q-and [(q-roles "RO72") (q-location cf144xw 10000)]) 2 (sort-by-distance cf144xw)))
+  
+  
+  (let [[lat lon] (nhspd/fetch-wgs84 nhspd "np25 3mm")]
     (search searcher {:s "caslte gate" :fuzzy 2 :from-location {:lat lat :lon lon} :roles "RO72"}))
 
   )
