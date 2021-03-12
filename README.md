@@ -90,10 +90,11 @@ instead link to a shared read-only filesystem and simply link to the latest back
 
 # Running a server
 
-To run as a microservice,
+To run as a microservice, you need to include the paths of the both 
+an ODS index, and an NHSPD index.
 
 ```shell
-clj -M:serve --port 8080 /var/tmp/clods-2021-01
+clj -M:serve /var/tmp/clods-2021-01  /var/tmp/nhspd-2021-02 8080
 ```
 
 # Development / contributing
