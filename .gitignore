@@ -5,3 +5,5 @@ target/
 clods.iml
 *.iml
 .clj-kondo
+.eastwood
+.nrepl-port
