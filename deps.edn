@@ -20,12 +20,24 @@
            org.apache.lucene/lucene-core    {:mvn/version "8.8.0"}
            org.apache.lucene/lucene-queries {:mvn/version "8.8.0"}}
 
- :aliases {:test     {:extra-paths ["test" "test/resources"]
+ :aliases {
+           :run      {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+                      :main-opts  ["-m" "com.eldrix.clods.cli"]}
+
+           :serve    {:extra-paths ["serve"]
+                      :extra-deps  {io.pedestal/pedestal.service   {:mvn/version "0.5.8"}
+                                    io.pedestal/pedestal.jetty     {:mvn/version "0.5.8"}
+                                    ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+                      :main-opts   ["-m" "com.eldrix.clods.serve"]}
+
+
+
+           :test     {:extra-paths ["test" "test/resources"]
                       :extra-deps  {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                :sha     "b6b3193fcc42659d7e46ecd1884a228993441182"}}
                       :main-opts   ["-m" "cognitect.test-runner"]}
 
-           :log {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}}
+           :log      {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}}
 
            :outdated {:extra-deps {antq/antq {:mvn/version "RELEASE"}}
                       :main-opts  ["-m" "antq.core"]}
@@ -51,8 +63,4 @@
                       :exec-fn      hf.depstar/uberjar
                       :exec-args    {:jar        "target/clods-full-v0.1.0.jar"
                                      :aot        true
-                                     :main-class "com.eldrix.clods.cli"}}
-
-           :serve    {:extra-deps {org.slf4j/slf4j-simple {:mvn/version "2.0.0-alpha1"}}
-                      :exec-fn    com.eldrix.clods.cli/serve
-                      :exec-args  {:db "jdbc:postgresql://localhost/ods" :port 8080}}}}
+                                     :main-class "com.eldrix.clods.cli"}}}}

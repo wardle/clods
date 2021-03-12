@@ -11,19 +11,25 @@ More finely-grained location services (e.g. ward, bed) are provided by other mod
 as part of a unified [concierge location service](https://github.com/wardle/concierge). 
 Ward and bed location and status data are usually provided as part of a patient administrative system rather than reference data services, but
 this aims to provide a seamless application programming interface (API) in order to 
-appropriately record the context of the capture of any clinical data.
+appropriately record the context of the capture of any clinical data. 
+
+It's part of a suite of supporting foundational data and computing services that help to
+answer questions about the 'who', 'what', 'when', 'how' and 'why' of health and care data.
 
 This software provides both a library and web service. As a library, it can easily be embedded into a larger
-application. As a microservice, it can easily be embedded into a suite of foundational platform services
-helping to answer questions about the 'who', 'what', 'when', 'how' and 'why' of health and care data.
-
+application. As a microservice, it can easily be embedded into a suite of foundational platform services.
 
 #### Design goals
+
+At its core, the software provides a close representation of the original source
+data while also providing a more abstract set of systems that will be federatable;
+that means application software working across international boundaries with
+runtime harmonisation and abstractions across multiple backend services.
 
 - Data-first - structured, self-describing data.
 - Properties as first-class abstractions rather than rigid class based 
   hierarchies. 
-- Subject / predicate / object (entity / attribute / value) triples.
+- Subject / predicate / object (entity / attribute / value) triples à la RDF.
 - Standards-based - providing foundational software and data services.
 - An 'open-world' assumption 
 - Client-driven graph-like queries.

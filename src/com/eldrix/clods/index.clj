@@ -17,14 +17,13 @@
 
 (set! *warn-on-reflection* true)
 
-(def hl7-oid-health-and-social-care-organisation-identifier
+(def ^String hl7-oid-health-and-social-care-organisation-identifier
   "The default organisation root is the HL7 OID representing a
   HealthAndSocialCareOrganisationIdentifier"
   "2.16.840.1.113883.2.1.3.2.4.18.48")
 
 (defn ^String make-org-id [org]
   (str (get-in org [:orgId :root]) "#" (get-in org [:orgId :extension])))
-
 
 (defn make-organisation-doc
   "Turn an organisation into a Lucene document.
@@ -87,16 +86,16 @@
   "Make a query for the identifier specified.
   - root      : (optional) root OID
   - extension : organisation extension (code)."
-  ([^String extension] (q-orgId hl7-oid-health-and-social-care-organisation-identifier extension))
+  ([^String extension] (q-orgId nil extension))
   ([^String root ^String extension]
    (-> (BooleanQuery$Builder.)
-       (.add (TermQuery. (Term. "root" root)) BooleanClause$Occur/MUST)
+       (.add (TermQuery. (Term. "root" (or root hl7-oid-health-and-social-care-organisation-identifier))) BooleanClause$Occur/MUST)
        (.add (TermQuery. (Term. "extension" extension)) BooleanClause$Occur/MUST)
        (.build))))
 
-(defn do-query [^IndexSearcher searcher ^Query q max-hits]
+(defn do-query [^IndexSearcher searcher ^Query q ^long max-hits]
   (let [results (seq (.-scoreDocs ^TopDocs (.search searcher q max-hits)))]
-    (map #(.doc searcher (.-doc %)) results)))
+    (map #(.doc searcher (.-doc ^ScoreDoc %)) results)))
 
 (defn doc->organisation
   "Deserialize a Lucene document into an ODS organisation."
@@ -217,8 +216,11 @@
 (defn make-search-query
   "Create a search query for an organisation.
   Parameters:
-  - s             : search for name of organisation
-  - fuzzy         : fuzziness factor (0-2)serve
+  - :s             : search for name of organisation
+  - :fuzzy         : fuzziness factor (0-2)serve
+  - :only-active?  : only include active organisations (default, true)
+  - :roles         : a string or vector of roles
+  - :from-location : a map containing:
        - :lat     : latitude (WGS84)
        - :lon     : longitude (WGS84)
        - :range   : range in metres (optional)
@@ -242,7 +244,12 @@
   "Search for an organisation.
   Parameters:
    - searcher : Lucene IndexSearcher
-   - q        : a map containing your query terms"
+   - q        : a map containing your query terms.
+
+  See `make-search-query` for the query terms.
+
+  Warning: the results are lazily evaluated, so use `doall` if you plan
+  on closing the IndexReader before processing the results."
   [^IndexSearcher searcher {:keys [_s _only-active? _roles from-location limit] :or {limit 1000} :as q}]
   (let [query (make-search-query q)
         {:keys [lat lon]} from-location
@@ -292,8 +299,8 @@
 
   (map doc->organisation (do-raw-query searcher (q-and [(q-roles "RO72") (q-location monmouth 10000)]) 10 (sort-by-distance monmouth)))
   (map doc->organisation (do-raw-query searcher (q-and [(q-roles "RO72") (q-location cf144xw 10000)]) 2 (sort-by-distance cf144xw)))
-  
-  
+
+
   (let [[lat lon] (nhspd/fetch-wgs84 nhspd "np25 3mm")]
     (search searcher {:s "caslte gate" :fuzzy 2 :from-location {:lat lat :lon lon} :roles "RO72"}))
 
