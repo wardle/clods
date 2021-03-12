@@ -82,7 +82,9 @@
 
 (defprotocol ODS
   (fetch-org [this root extension] "Fetch an organisation by identifier")
-  (search-org [this params] "Search for an organisation using the parameters specified."))
+  (search-org [this params] "Search for an organisation using the parameters specified.")
+  (fetch-postcode [this pc] "Return NHSPD data about the specified postcode.")
+  (fetch-wgs84 [this pc] "Returns WGS84 lat/long coordinates about the postcode."))
 
 (defn open-index
   [ods-dir nhspd-dir]
@@ -93,6 +95,8 @@
       ODS
       (fetch-org [_ root extension] (index/fetch-org searcher root extension))
       (search-org [_ params] (search searcher nhspd params))
+      (fetch-postcode [_ pc] (nhspd/fetch-postcode nhspd pc))
+      (fetch-wgs84 [_ pc] (nhspd/fetch-wgs84 nhspd pc))
       Closeable
       (close [_]
         (.close reader)
@@ -109,8 +113,8 @@
   (with-open [idx (open-index "/var/tmp/ods" "/tmp/nhspd-2021-02")]
     (doall (search-org idx {:s "vale" :limit 2 :from-location {:postcode "CF14 4XW"}})))
 
-  ;; find surgeries within 2k of Llandaff North
+  ;; find surgeries within 2k of Llandaff North, in Cardiff
   (with-open [idx (open-index "/var/tmp/ods" "/tmp/nhspd-2021-02")]
-    (doall (search-org idx {:roles "RO72" :from-location {:postcode "CF14 2HD" :range 2000}})))
+    (doall (search-org idx {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}})))
   )
 
