@@ -54,47 +54,80 @@ As such, this, and the other `PatientCare` services are designed to automate as 
 
 # Getting started: 
 
-You can use a pre-built jar file, or simply use from source code at the command-line. 
-To do the latter, you'll need to install [clojure]
+You'll need to install [clojure](https://www.clojure.org) for the best experience
+but it is possible to run using a pre-built jar.
 
 # Importing data
 
 This service needs a directory on a filesystem to operate.
 
-In these examples, we'll use `/var/tmp/ods-2021-01`
+The NHS organisational data includes information about NHS organisations.
+To enable geographical services, `clods` combines these data with NHS
+geographical data using the 'NHS postcode directory'. You can use 
+[nhspd](https://github.com/wardle/nhspd) as a standalone service, but for
+convenience, `clods` includes that tooling.
+
+## 1. Choose the location of your index files.
+
+In these examples, we'll use
+
+- /var/local/ods-2021-02   for our organisation index
+- /var/local/nhspd-2020-11 for our postcode index
+
+We also need to specify a temporary cache for downloaded data.
+
+For these examples, we'll use
+
+- /var/tmp/trud
 
 You can choose to use a single directory and update-in-place, or build a new
 repository at intervals. I prefer read-only, immutable backing data by default,
-so favour the latter.
+so favour the latter. 
 
-You will need a TRUD API key. 
+## 2. Initialise the postcode service
+
+You may already have [nhspd](https://github.com/wardle/nhspd) running; use the
+index you use for that.
+
+If not, let's get one set-up
+
+```shell
+clj -M:nhspd /var/local/nhspd-2020-11
+```
+
+After a few minutes, the NHS postcode directory index will have been downloaded
+and imported. 
+
+## 3. Initialise the organisation service
+
+You will need a NHS Digital TRUD API key.  
+
 Login to the [NHS Digital TRUD](https://isd.digital.nhs.uk/) and find your API key under your profile. 
 Write that key to a file and link to it from the command-line:
 
 ```shell
-clj -M:download --api-key /path/to/api-key.txt --cache-dir /var/trud /var/tmp/ods-2021-01
+clj -M:install --nhspd /var/local/nhspd-2020-11 --api-key /path/to/api-key.txt --cache-dir /var/tmp/trud /var/local/ods-2021-02
 ```
 
-The software will initialise a data repository at that location, and automatically
-include the NHS postcode directory (NHSPD) and the NHS organisational data service. 
-
-If you already have an NHSPD service available, you can instead provide a link
-to that repository and save download bandwidth!
-
-```shell
-clj -M:download --nhspd /var/tmp/nhspd-2020-10 --api-key /path/to/api-key.txt --cache-dir /var/trud /var/tmp/ods-2021-01 
-```
+`clods` will proceed to download the latest distribution files from TRUD, or use the existing
+downloaded version in your local cache if available, and create an organisation index.
 
 While you could embed all of this into a single Docker image for deployment, it might be better to 
 instead link to a shared read-only filesystem and simply link to the latest backend data.
 
-# Running a server
+# Running a simple REST server
 
 To run as a microservice, you need to include the paths of the both 
-an ODS index, and an NHSPD index.
+an ODS index, and an NHSPD index as well as the port to run on.
 
 ```shell
-clj -M:serve /var/tmp/clods-2021-01  /var/tmp/nhspd-2021-02 8080
+clj -M:serve /var/local/ods-2021-02  /var/local/nhspd-2020-11 8080
+```
+
+# Running a FHIR-compatible server
+
+```shell
+clj -M:fhir-r4 /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 ```
 
 # Development / contributing

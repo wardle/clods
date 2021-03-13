@@ -21,8 +21,11 @@
            org.apache.lucene/lucene-queries {:mvn/version "8.8.0"}}
 
  :aliases {
-           :run      {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
-                      :main-opts  ["-m" "com.eldrix.clods.cli"]}
+           :install  {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+                      :main-opts  ["-m" "com.eldrix.clods.install"]}
+
+           :nhspd    {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+                      :main-opts  ["-m" "com.eldrix.clods.nhspd"]}
 
            :serve    {:extra-paths ["serve"]
                       :extra-deps  {io.pedestal/pedestal.service   {:mvn/version "0.5.8"}
@@ -30,7 +33,11 @@
                                     ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
                       :main-opts   ["-m" "com.eldrix.clods.serve"]}
 
-
+           :fhir-r4  {:extra-paths ["fhir_r4"]
+                      :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "5.3.0"}
+                                    ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "5.3.0"}
+                                    ch.qos.logback/logback-classic           {:mvn/version "1.2.3"}}
+                      :main-opts   ["-m " com.eldrix.clods.fhir_r4]}
 
            :test     {:extra-paths ["test" "test/resources"]
                       :extra-deps  {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"

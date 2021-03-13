@@ -17,34 +17,18 @@
   [params]
   (dl/download params))
 
-(defn- ^NHSPD make-temporary-nhspd
-  "Downloads and creates an NHS postcode directory service.
-  Use within a 'with-open' block or '.close' once done."
-  []
-  (let [temp-dir (Files/createTempDirectory "nhspd" (make-array FileAttribute 0))]
-    (log/info "Downloading and creating a temporary NHS postcode directory index.")
-    (nhspd/write-index (str temp-dir))
-    (nhspd/open-index (str temp-dir))))
-
 (defn install
   "Download and install the latest release using the defined NHSPD service.
   Parameters:
   - dir       : directory in which to build ODS service
+  - nhspd     : an NHS postcode directory service
   - api-key   : TRUD api key
-  - cache-dir : TRUD cache directory
-  - nhspd     : (optional) an NHS postcode directory service.
-
-  If no NHSPD service is provided, one will be created temporarily."
-  ([dir api-key cache-dir nhspd]
-   (if-not nhspd
-     (install dir api-key cache-dir)
-     (do (log/info "Installing NHS organisational data index to:" dir)
-         (let [ods (download {:api-key api-key :cache-dir cache-dir})]
-           (index/build-index nhspd (:organisations ods) dir))
-         (log/info "Finished creating index at " dir))))
-  ([dir api-key cache-dir]
-   (with-open [nhspd (make-temporary-nhspd)]
-     (install dir api-key cache-dir nhspd))))
+  - cache-dir : TRUD cache directory."
+  [^String dir ^NHSPD nhspd api-key cache-dir ]
+  (log/info "Installing NHS organisational data index to:" dir)
+  (let [ods (download {:api-key api-key :cache-dir cache-dir})]
+    (index/build-index nhspd (:organisations ods) dir))
+  (log/info "Finished creating index at " dir))
 
 (defn merge-coords-from-postcode
   "Merge lat/lon information using value of :postcode, if supplied.
