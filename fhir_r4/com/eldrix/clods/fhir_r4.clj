@@ -57,16 +57,8 @@
       (.start server))))
 
 (comment
-  (def server (Server.))
-
-  (def connector (ServerConnector. server))
-  (.addConnector server (doto connector
-                          (.setPort 8080)))
-  (def handler (ServletContextHandler. ServletContextHandler/SESSIONS))
-  (.setContextPath handler "/")
-  (def servlet-holder (ServletHolder. r4-servlet))
-  (.addServlet handler servlet-holder "/fhir/*")
-  (.setHandler server handler)
+  (def ods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd-nov-2020"))
+  (def server (make-server ods {:port 8080}))
   (.start server)
   (.stop server)
   )
