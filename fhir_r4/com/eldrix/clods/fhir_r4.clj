@@ -3,7 +3,7 @@
             [com.eldrix.clods.core :as clods])
   (:import (ca.uhn.fhir.rest.server RestfulServer IResourceProvider)
            (ca.uhn.fhir.context FhirContext)
-           (org.hl7.fhir.r4.model Organization IdType Address)
+           (org.hl7.fhir.r4.model Organization IdType Address Identifier)
            (ca.uhn.fhir.rest.annotation Read IdParam)
            (org.eclipse.jetty.servlet ServletContextHandler ServletHolder)
            (ca.uhn.fhir.rest.server.interceptor ResponseHighlighterInterceptor)
@@ -13,15 +13,31 @@
            (ca.uhn.fhir.rest.server.exceptions ResourceNotFoundException)))
 
 ;; TODO: complete
-(defn ^Address make-address [location]
+(defn ^Address make-address [org]
   (doto (Address.)
-    (.setPostalCode (:postcode location) )))
+    (.setPostalCode (get-in org [:location :postcode]))))
+
+(defn make-identifiers [org]
+  (let [root (get-in org [:orgId :root])
+        extension (get-in org [:orgId :extension])
+        ;; an OID is a legacy HL7 identifier - but the native ODS identifier
+        oid (doto (Identifier.)
+              (.setSystem root)
+              (.setId extension))]
+    (cond-> [oid]
+            ;; Organisations
+            (= :RC1 (:orgRecordClass org))
+            (conj (doto (Identifier.) (.setSystem "https://fhir.nhs.uk/Id/ods-organization-code") (.setId extension)))
+            ;; Organisation sites
+            (= :RC2 (:orgRecordClass org))
+            (conj (doto (Identifier.) (.setSystem "https://fhir.nhs.uk/Id/ods-site-code") (.setId extension))))))
 
 (defn ^Organization make-organization [org]
   (doto (org.hl7.fhir.r4.model.Organization.)
-    (.setId (get-in org [:orgId :extension]))   ;; todo: add base resource
+    (.setId (get-in org [:orgId :extension]))
+    (.setIdentifier (make-identifiers org))
     (.setActive (:active org))
-    (.setAddress [(make-address (:location org))])
+    (.setAddress [(make-address org)])
     (.setName (:name org))))
 
 
