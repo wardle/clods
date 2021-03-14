@@ -3,13 +3,27 @@
             [com.eldrix.clods.core :as clods])
   (:import (ca.uhn.fhir.rest.server RestfulServer IResourceProvider)
            (ca.uhn.fhir.context FhirContext)
-           (org.hl7.fhir.r4.model Organization IdType)
+           (org.hl7.fhir.r4.model Organization IdType Address)
            (ca.uhn.fhir.rest.annotation Read IdParam)
            (org.eclipse.jetty.servlet ServletContextHandler ServletHolder)
            (ca.uhn.fhir.rest.server.interceptor ResponseHighlighterInterceptor)
            (org.eclipse.jetty.server Server ServerConnector)
            (com.eldrix.clods.core ODS)
-           (javax.servlet Servlet)))
+           (javax.servlet Servlet)
+           (ca.uhn.fhir.rest.server.exceptions ResourceNotFoundException)))
+
+;; TODO: complete
+(defn ^Address make-address [location]
+  (doto (Address.)
+    (.setPostalCode (:postcode location) )))
+
+(defn ^Organization make-organization [org]
+  (doto (org.hl7.fhir.r4.model.Organization.)
+    (.setId (get-in org [:orgId :extension]))   ;; todo: add base resource
+    (.setActive (:active org))
+    (.setAddress [(make-address (:location org))])
+    (.setName (:name org))))
+
 
 (definterface OrganizationGetResourceById
   (^org.hl7.fhir.r4.model.Organization getResourceById [^org.hl7.fhir.r4.model.IdType id]))
@@ -22,9 +36,14 @@
      Read true}                                             ;; The "@Read" annotation indicates that this method supports the read operation. It takes one argument, the Resource type being returned.
     getResourceById [this ^{:tag    org.hl7.fhir.r4.model.IdType
                             IdParam true} id]
-    (doto (org.hl7.fhir.r4.model.Organization.)
-      (.setId "1")
-      (.setName "Test organisation"))))
+    (let [base-url (.getBaseUrl id)
+          identifier (.getIdPart id)
+          org (clods/fetch-org ods base-url identifier)]
+      (log/info "Fetch organisation by id: " base-url " id:" identifier)
+      (log/info "Result " org)
+      (if-not org
+        (throw (ResourceNotFoundException. id))
+        (make-organization org)))))
 
 (defn ^Servlet make-r4-servlet [^ODS ods]
   (proxy [RestfulServer] [(FhirContext/forR4)]
@@ -42,7 +61,7 @@
         server (doto (Server.)
                  (.setHandler handler))
         connector (doto (ServerConnector. server)
-                     (.setPort (or port 8080)))]
+                    (.setPort (or port 8080)))]
     (.addConnector server connector)
     server))
 
@@ -61,4 +80,5 @@
   (def server (make-server ods {:port 8080}))
   (.start server)
   (.stop server)
+  (clods/fetch-org ods nil "RWMBV")
   )
