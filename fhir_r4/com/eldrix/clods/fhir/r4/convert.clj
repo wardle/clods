@@ -1,7 +1,9 @@
 (ns com.eldrix.clods.fhir.r4.convert
   (:require [com.eldrix.clods.core :as clods]
+            [com.eldrix.clods.normalize :as normalize]
             [com.eldrix.clods.index :as index])
-  (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType)))
+  (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType)
+           (com.eldrix.clods.core ODS)))
 
 (defn ^Address make-address [org]
   (doto (Address.)
@@ -23,6 +25,12 @@
       (.setSystem sys)
       (.setValue value))))
 
+(defn make-aliases [ods org]
+  (->> (clods/all-predecessors ods org)
+       (map :name)
+       (into #{})
+       (map #(StringType. %))))
+
 (defn make-identifiers [org]
   (let [root (get-in org [:orgId :root])
         extension (get-in org [:orgId :extension])
@@ -38,20 +46,24 @@
             (= :RC2 (:orgRecordClass org))
             (conj (doto (Identifier.) (.setSystem "https://fhir.nhs.uk/Id/ods-site-code") (.setId extension))))))
 
-(defn ^Organization make-organization [org]
+(defn ^Organization make-organization
+  [^ODS ods org]
   (doto (Organization.)
     (.setId ^String (get-in org [:orgId :extension]))
     (.setIdentifier (make-identifiers org))
     (.setActive (:active org))
+    (.setAlias (make-aliases ods org))
     (.setAddress [(make-address org)])
     (.setTelecom (map make-contact-point (:contacts org)))
     (.setName (:name org))))
 
 (comment
-  (def reader (index/open-index-reader "/var/tmp/ods"))
-  (def searcher (org.apache.lucene.search.IndexSearcher. reader))
-  (make-organization (index/fetch-org searcher nil "RNN"))
+  (def ods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd"))
+
   ;; this converts all known organisations into FHIR R4...
-  (do (doall (map make-organization (index/all-organizations reader searcher)))
+  (do (doall (map make-organization (clods/all-organizations ods)))
       (println "done"))
+
+  (def org (index/fetch-org searcher nil "X26"))
+  (make-organization ods org)
   )

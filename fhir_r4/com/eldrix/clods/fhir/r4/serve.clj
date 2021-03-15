@@ -32,7 +32,7 @@
           org (clods/fetch-org ods system value)
           _ (log/info "Result" org)]
       (if org
-        (r4convert/make-organization org)
+        (r4convert/make-organization ods org)
         (throw (ResourceNotFoundException. id))))))
 
 (defn ^Servlet make-r4-servlet [^ODS ods]
