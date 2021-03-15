@@ -67,6 +67,7 @@
 (defprotocol ODS
   (fetch-org [this root extension] "Fetch an organisation by identifier")
   (search-org [this params] "Search for an organisation using the parameters specified.")
+  (all-organizations [this] "Returns a lazy sequence of all organisations")
   (fetch-postcode [this pc] "Return NHSPD data about the specified postcode.")
   (fetch-wgs84 [this pc] "Returns WGS84 lat/long coordinates about the postcode."))
 
@@ -79,12 +80,81 @@
       ODS
       (fetch-org [_ root extension] (index/fetch-org searcher root extension))
       (search-org [_ params] (search searcher nhspd params))
+      (all-organizations [_] (index/all-organizations reader searcher))
       (fetch-postcode [_ pc] (nhspd/fetch-postcode nhspd pc))
       (fetch-wgs84 [_ pc] (nhspd/fetch-wgs84 nhspd pc))
       Closeable
       (close [_]
         (.close reader)
         (.close nhspd)))))
+
+
+(def namespace-ods-organisation "https://fhir.nhs.uk/Id/ods-organization")
+(def namespace-ods-site "https://fhir.nhs.uk/Id/ods-site")
+(def orgRecordClass->namespace {:RC1 namespace-ods-organisation
+                                :RC2 namespace-ods-site})
+
+(defn normalize-id
+  "Normalizes an ODS identifier oid/extension to a URI/value with the URI
+  prefix of 'urn:uri:'"
+  [id]
+  (-> id
+      (dissoc :root :extension)
+      (assoc :system (str "urn:oid:" (:root id))
+             :value (:extension id))))
+
+(defn normalize-targets
+  "Normalizes the `target` key (containing `:root` and `:extension` keys) to
+   turn `root/extension` into `system/value' where system is a URI"
+  [v]
+  (map #(update % :target normalize-id) v))
+
+(defn active-successors
+  "Returns the active successor(s) of the given organisation, or the given
+  organisation if it is still active"
+  [ods org]
+  (if (:active org)
+    [org]
+    (flatten (->> (:successors org)
+                  (map #(active-successors ods (fetch-org ods nil (get-in % [:target :extension]))))))))
+
+(defn all-predecessors
+  "Returns the names of all of the predecessor names of the specified
+  organisation"
+  ([ods org]
+   (concat
+     (->> (:predecessors org)
+          (map :target)
+          (map :extension)
+          (map #(fetch-org ods nil %))
+          (map #(assoc (normalize-id (:orgId %)) :name (:name %))))
+     (flatten (->> (:predecessors org)
+                   (map #(all-predecessors (partial fetch-org ods nil) (get-in % [:target :extension]))))))))
+
+(defn org-identifiers
+  "Returns a normalised list of organisation identifiers.
+   This turns a single ODS orgId (oid/extension) into a list of uri/values."
+  [org]
+  [{:system (str "urn:oid:" (get-in org [:orgId :root])) :value (get-in org [:orgId :extension])}
+   {:system (get orgRecordClass->namespace (:orgRecordClass org)) :value (get-in org [:orgId :extension])}])
+
+(defn normalize-org
+  "Normalizes an organisation, turning legacy ODS OID/extension identifiers into
+  namespaced URI/value identifiers"
+  [org]
+  (if (nil? org)
+    nil
+    (let [org-type (get orgRecordClass->namespace (:orgRecordClass org))]
+      (-> org
+          (dissoc :orgId)
+          (assoc :identifiers (org-identifiers org)
+                 "@type" org-type)
+          (update :relationships normalize-targets)
+          (update :predecessors normalize-targets)
+          (update :successors normalize-targets)))))
+
+
+
 
 (comment
 
