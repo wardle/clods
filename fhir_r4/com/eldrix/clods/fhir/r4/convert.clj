@@ -1,5 +1,6 @@
 (ns com.eldrix.clods.fhir.r4.convert
-  (:require [com.eldrix.clods.core :as clods])
+  (:require [com.eldrix.clods.core :as clods]
+            [com.eldrix.clods.index :as index])
   (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType)))
 
 (defn ^Address make-address [org]
@@ -39,18 +40,18 @@
 
 (defn ^Organization make-organization [org]
   (doto (Organization.)
-    (.setId (get-in org [:orgId :extension]))
+    (.setId ^String (get-in org [:orgId :extension]))
     (.setIdentifier (make-identifiers org))
     (.setActive (:active org))
     (.setAddress [(make-address org)])
     (.setTelecom (map make-contact-point (:contacts org)))
     (.setName (:name org))))
 
-
 (comment
-  (require '[com.eldrix.clods.core :as clods])
-  (def ods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd-nov-2020"))
-  (make-organization (clods/fetch-org ods nil "RNN"))
-  (clods/search-org ods {:s
-                         "Castle Gate"})
+  (def reader (index/open-index-reader "/var/tmp/ods"))
+  (def searcher (org.apache.lucene.search.IndexSearcher. reader))
+  (make-organization (index/fetch-org searcher nil "RNN"))
+  ;; this converts all known organisations into FHIR R4...
+  (do (doall (map make-organization (index/all-organizations reader searcher)))
+      (println "done"))
   )
