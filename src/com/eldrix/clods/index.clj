@@ -115,6 +115,23 @@
      (when-let [doc (.doc searcher (.-doc score-doc))]
        (doc->organisation doc)))))
 
+(defn all-organizations
+  "Returns a lazy sequence of all of the organisations."
+  [^IndexReader reader ^IndexSearcher searcher]
+  (->> (range 1 (.maxDoc reader))
+       (map #(.doc searcher %))
+       (remove nil?)
+       (map doc->organisation)))
+
+(defn all-contact-types
+  "Given a sequence of organisations, return all used contact types."
+  [orgs]
+  (->> orgs
+       (map :contacts)
+       (flatten)
+       (map :type)
+       (into #{})))
+
 (defn do-raw-query
   ([^IndexSearcher searcher ^Query q max-hits ^Sort sort]
    (map #(.doc searcher (.-doc ^ScoreDoc %)) (seq (.-scoreDocs ^TopDocs (.search searcher q ^int max-hits sort)))))
@@ -304,5 +321,6 @@
   (let [[lat lon] (nhspd/fetch-wgs84 nhspd "np25 3mm")]
     (search searcher {:s "caslte gate" :fuzzy 2 :from-location {:lat lat :lon lon} :roles "RO72"}))
 
+  (take 1 (all-organizations reader searcher))
   )
 

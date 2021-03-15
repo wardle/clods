@@ -2,7 +2,6 @@
   (:require [com.eldrix.clods.core :as clods])
   (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType)))
 
-;; TODO: complete
 (defn ^Address make-address [org]
   (doto (Address.)
     (.setLine [(StringType. (get-in org [:location :address1]))
@@ -14,7 +13,8 @@
 
 (def contact-type->r4
   {"http" ContactPoint$ContactPointSystem/URL
-   "tel"  ContactPoint$ContactPointSystem/PHONE})
+   "tel"  ContactPoint$ContactPointSystem/PHONE
+   "fax"  ContactPoint$ContactPointSystem/FAX})
 
 (defn ^ContactPoint make-contact-point [{:keys [type value]}]
   (let [sys (get contact-type->r4 type ContactPoint$ContactPointSystem/OTHER)]
