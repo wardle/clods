@@ -5,6 +5,12 @@
            (com.eldrix.clods.core ODS)
            (org.hl7.fhir.r4.model.codesystems OrganizationType)))
 
+(def fhir-system->oid
+  {"https://fhir.nhs.uk/Id/ods-organization"   "2.16.840.1.113883.2.1.3.2.4.18.48"
+   "https://fhir.nhs.uk/Id/ods-site"           "2.16.840.1.113883.2.1.3.2.4.18.48"
+   "urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48" "2.16.840.1.113883.2.1.3.2.4.18.48"
+   "2.16.840.1.113883.2.1.3.2.4.18.48"         "2.16.840.1.113883.2.1.3.2.4.18.48"})
+
 (defn ^Address make-address [org]
   (doto (Address.)
     (.setLine [(StringType. (get-in org [:location :address1]))
@@ -42,8 +48,8 @@
                   [coding]
                   (let [role-code (get role->r4 id "prov")]
                     (conj [coding] (make-coding {:codeSystem  "http://hl7.org/fhir/ValueSet/organization-type"
-                                               :id          role-code
-                                               :displayName (.getDisplay (OrganizationType/fromCode role-code))}))))]
+                                                 :id          role-code
+                                                 :displayName (.getDisplay (OrganizationType/fromCode role-code))}))))]
     (doto (CodeableConcept.)
       (.setCoding codings))))
 

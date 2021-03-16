@@ -7,17 +7,23 @@
   (:import (ca.uhn.fhir.rest.server RestfulServer IResourceProvider)
            (ca.uhn.fhir.context FhirContext)
            (org.hl7.fhir.r4.model Organization IdType Address Identifier)
-           (ca.uhn.fhir.rest.annotation Read IdParam)
+           (ca.uhn.fhir.rest.annotation Read IdParam Search RequiredParam)
            (org.eclipse.jetty.servlet ServletContextHandler ServletHolder)
            (ca.uhn.fhir.rest.server.interceptor ResponseHighlighterInterceptor)
            (org.eclipse.jetty.server Server ServerConnector)
            (com.eldrix.clods.core ODS)
            (javax.servlet Servlet)
-           (ca.uhn.fhir.rest.server.exceptions ResourceNotFoundException)))
+           (ca.uhn.fhir.rest.server.exceptions ResourceNotFoundException)
+           (java.util List)
+           (ca.uhn.fhir.rest.param TokenParam)))
 
 
 (definterface OrganizationGetResourceById
   (^org.hl7.fhir.r4.model.Organization getResourceById [^org.hl7.fhir.r4.model.IdType id]))
+
+(definterface OrganizationSearch
+  (^java.util.List searchByIdentifier [^ca.uhn.fhir.rest.param.TokenParam id]))
+
 
 (deftype OrganizationResourceProvider [^ODS ods]
   IResourceProvider
@@ -28,12 +34,22 @@
     getResourceById [_this ^{:tag    org.hl7.fhir.r4.model.IdType
                              IdParam true} id]
     (let [[value system] (reverse (str/split (.getIdPart id) #"\|"))
-          _ (log/info "Fetch organisation " system "|" value)
-          org (clods/fetch-org ods system value)
-          _ (log/info "Result" org)]
+          root (when system (get r4convert/fhir-system->oid system))
+          org (clods/fetch-org ods root value)]
       (if org
         (r4convert/make-organization ods org)
-        (throw (ResourceNotFoundException. id))))))
+        (throw (ResourceNotFoundException. id)))))
+  OrganizationSearch
+  (^{:tag   java.util.List
+     Search true}
+    searchByIdentifier [_this ^{:tag          ca.uhn.fhir.rest.param.TokenParam
+                                RequiredParam {:name "identifier"}} id]
+    (let [root (get r4convert/fhir-system->oid (.getSystem id))
+          extension (.getValue id)
+          org (clods/fetch-org ods root extension)]
+      (if org
+        [(r4convert/make-organization ods org)]
+        (throw (ResourceNotFoundException. (str id)))))))
 
 (defn ^Servlet make-r4-servlet [^ODS ods]
   (proxy [RestfulServer] [(FhirContext/forR4)]
