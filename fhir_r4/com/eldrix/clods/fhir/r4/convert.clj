@@ -1,8 +1,6 @@
 (ns com.eldrix.clods.fhir.r4.convert
-  (:require [com.eldrix.clods.core :as clods]
-            [com.eldrix.clods.normalize :as normalize]
-            [com.eldrix.clods.index :as index])
-  (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType)
+  (:require [com.eldrix.clods.core :as clods])
+  (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType Identifier$IdentifierUse)
            (com.eldrix.clods.core ODS)))
 
 (defn ^Address make-address [org]
@@ -31,26 +29,17 @@
        (into #{})
        (map #(StringType. %))))
 
-(defn make-identifiers [org]
-  (let [root (get-in org [:orgId :root])
-        extension (get-in org [:orgId :extension])
-        ;; an OID is a legacy HL7 identifier - but the native ODS identifier
-        oid (doto (Identifier.)
-              (.setSystem root)
-              (.setId extension))]
-    (cond-> [oid]
-            ;; Organisations
-            (= :RC1 (:orgRecordClass org))
-            (conj (doto (Identifier.) (.setSystem "https://fhir.nhs.uk/Id/ods-organization-code") (.setId extension)))
-            ;; Organisation sites
-            (= :RC2 (:orgRecordClass org))
-            (conj (doto (Identifier.) (.setSystem "https://fhir.nhs.uk/Id/ods-site-code") (.setId extension))))))
+(defn make-identifier [{:keys [system value type] :or {type :org.hl7.fhir.identifier-use/official}}]
+  (doto (Identifier.)
+    (.setSystem system)
+    (.setValue value)
+    (.setUse (Identifier$IdentifierUse/fromCode (name type)) )))
 
 (defn ^Organization make-organization
   [^ODS ods org]
   (doto (Organization.)
     (.setId ^String (get-in org [:orgId :extension]))
-    (.setIdentifier (make-identifiers org))
+    (.setIdentifier (map make-identifier (clods/org-identifiers org)))
     (.setActive (:active org))
     (.setAlias (make-aliases ods org))
     (.setAddress [(make-address org)])
@@ -58,12 +47,12 @@
     (.setName (:name org))))
 
 (comment
-  (def ods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd"))
+  (def ods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd-nov-2020"))
 
   ;; this converts all known organisations into FHIR R4...
   (do (doall (map make-organization (clods/all-organizations ods)))
       (println "done"))
-
-  (def org (index/fetch-org searcher nil "X26"))
-  (make-organization ods org)
+  (def org (clods/fetch-org ods nil "X26"))
+  (clods/org-identifiers org)
+  (map make-identifier (clods/org-identifiers org))
   )

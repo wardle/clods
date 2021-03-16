@@ -135,8 +135,8 @@
   "Returns a normalised list of organisation identifiers.
    This turns a single ODS orgId (oid/extension) into a list of uri/values."
   [org]
-  [{:system (str "urn:oid:" (get-in org [:orgId :root])) :value (get-in org [:orgId :extension])}
-   {:system (get orgRecordClass->namespace (:orgRecordClass org)) :value (get-in org [:orgId :extension])}])
+  [{:system (str "urn:oid:" (get-in org [:orgId :root])) :value (get-in org [:orgId :extension]) :type :org.hl7.fhir.identifier-use/old}
+   {:system (get orgRecordClass->namespace (:orgRecordClass org)) :value (get-in org [:orgId :extension]) :type :org.hl7.fhir.identifier-use/official}])
 
 (defn normalize-org
   "Normalizes an organisation, turning legacy ODS OID/extension identifiers into
