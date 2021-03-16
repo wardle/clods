@@ -2,7 +2,8 @@
   (:require [com.eldrix.clods.core :as clods]
             [clojure.string :as str])
   (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType Identifier$IdentifierUse Reference ResourceType Coding CodeableConcept)
-           (com.eldrix.clods.core ODS)))
+           (com.eldrix.clods.core ODS)
+           (org.hl7.fhir.r4.model.codesystems OrganizationType)))
 
 (defn ^Address make-address [org]
   (doto (Address.)
@@ -42,7 +43,7 @@
                   (let [role-code (get role->r4 id "prov")]
                     (conj [coding] (make-coding {:codeSystem  "http://hl7.org/fhir/ValueSet/organization-type"
                                                :id          role-code
-                                               :displayName (str/capitalize role-code)}))))]
+                                               :displayName (.getDisplay (OrganizationType/fromCode role-code))}))))]
     (doto (CodeableConcept.)
       (.setCoding codings))))
 
