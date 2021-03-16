@@ -17,6 +17,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def index-version 1)
+
 (def ^String hl7-oid-health-and-social-care-organisation-identifier
   "The default organisation root is the HL7 OID representing a
   HealthAndSocialCareOrganisationIdentifier"
@@ -56,6 +58,24 @@
 (defn write-batch! [^IndexWriter writer nhspd orgs]
   (dorun (map (fn [org] (.updateDocument writer (Term. "id" (make-org-id org)) (make-organisation-doc nhspd org))) orgs))
   (.commit writer))
+
+(defn make-metadata-document
+  "Create a Lucene document to store arbitrary data using the key specified."
+  [^String k m]
+  (doto (Document.)
+    (.add (StringField. "metadata" k Field$Store/NO))
+    (.add (StoredField. "data" ^bytes (nippy/freeze m)))))
+
+(defn write-metadata
+  [^IndexWriter writer ^String k m]
+  (.updateDocument writer (Term. "metadata" k) (make-metadata-document k m))
+  (.commit writer))
+
+(defn read-metadata
+  [^IndexSearcher searcher ^String k]
+  (when-let [score-doc ^ScoreDoc (first (seq (.-scoreDocs ^TopDocs (.search searcher (TermQuery. (Term. "metadata" k)) 1))))]
+    (when-let [doc (.doc searcher (.-doc score-doc))]
+      (nippy/thaw (.-bytes (.getBinaryValue doc "data"))))))
 
 (defn ^IndexWriter open-index-writer
   [filename]
@@ -281,6 +301,12 @@
   ;; download and build the index
   (require '[com.eldrix.clods.download :as dl])
   (def ods (dl/download {:api-key api-key :cache-dir "/tmp/trud" :batch-size 1000}))
+  (keys ods)
+  (:code-systems ods)
+
+  (def writer (open-index-writer "/var/tmp/ods"))
+  (put-metadata writer "code-systems" (:code-systems ods))
+  (.close writer)
 
   ;; integrate NHS postcode directory
   (require '[com.eldrix.nhspd.core :as nhspd])
@@ -294,6 +320,7 @@
   ;; search for an organisation
   (def reader (open-index-reader "/var/tmp/ods"))
   (def searcher (IndexSearcher. reader))
+  (get-metadata searcher "code-systems")
   (q-orgId "BE1EC")
   (fetch-org searcher "7A4BV")
 

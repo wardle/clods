@@ -1,6 +1,6 @@
 (ns com.eldrix.clods.fhir.r4.convert
   (:require [com.eldrix.clods.core :as clods])
-  (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType Identifier$IdentifierUse)
+  (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType Identifier$IdentifierUse Reference ResourceType)
            (com.eldrix.clods.core ODS)))
 
 (defn ^Address make-address [org]
@@ -33,7 +33,14 @@
   (doto (Identifier.)
     (.setSystem system)
     (.setValue value)
-    (.setUse (Identifier$IdentifierUse/fromCode (name type)) )))
+    (.setUse (Identifier$IdentifierUse/fromCode (name type)))))
+
+(defn make-reference [org]
+  (when-let [org-id (first (clods/org-identifiers org))]
+    (doto (Reference.)
+      (.setType (str ResourceType/Organization))
+      (.setIdentifier (make-identifier org-id))
+      (.setDisplay (:name org)))))
 
 (defn ^Organization make-organization
   [^ODS ods org]
@@ -41,6 +48,8 @@
     (.setId ^String (get-in org [:orgId :extension]))
     (.setIdentifier (map make-identifier (clods/org-identifiers org)))
     (.setActive (:active org))
+    (.setPartOf (when-let [[root ext] (clods/org-part-of org)]
+                  (make-reference (clods/fetch-org ods root ext))))
     (.setAlias (make-aliases ods org))
     (.setAddress [(make-address org)])
     (.setTelecom (map make-contact-point (:contacts org)))
@@ -53,6 +62,13 @@
   (do (doall (map make-organization (clods/all-organizations ods)))
       (println "done"))
   (def org (clods/fetch-org ods nil "X26"))
+  (def org (clods/fetch-org ods nil "7A4"))
+  org
   (clods/org-identifiers org)
   (map make-identifier (clods/org-identifiers org))
+  (clods/get-role ods "RO72")
+  (clods/get-relationship ods "RE11")
+  (clods/code-systems ods)
+  (clods/org-part-of org)
+  (clods/search-org ods {:s "Castle Gate "})
   )

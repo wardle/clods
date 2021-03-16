@@ -18,13 +18,13 @@
   (dl/download params))
 
 (defn install
-  "Download and install the latest release using the defined NHSPD service.
+  "Download and install the latest ODS release using the defined NHSPD service.
   Parameters:
   - dir       : directory in which to build ODS service
   - nhspd     : an NHS postcode directory service
   - api-key   : TRUD api key
   - cache-dir : TRUD cache directory."
-  [^String dir ^NHSPD nhspd api-key cache-dir ]
+  [^String dir ^NHSPD nhspd api-key cache-dir]
   (log/info "Installing NHS organisational data index to:" dir)
   (let [ods (download {:api-key api-key :cache-dir cache-dir})]
     (index/build-index nhspd (:organisations ods) dir))
@@ -68,6 +68,7 @@
   (fetch-org [this root extension] "Fetch an organisation by identifier")
   (search-org [this params] "Search for an organisation using the parameters specified.")
   (all-organizations [this] "Returns a lazy sequence of all organisations")
+  (code-systems [this] "Return all ODS codesystems")
   (fetch-postcode [this pc] "Return NHSPD data about the specified postcode.")
   (fetch-wgs84 [this pc] "Returns WGS84 lat/long coordinates about the postcode."))
 
@@ -75,12 +76,14 @@
   [ods-dir nhspd-dir]
   (let [reader (index/open-index-reader ods-dir)
         searcher (IndexSearcher. reader)
-        nhspd (nhspd/open-index nhspd-dir)]
+        nhspd (nhspd/open-index nhspd-dir)
+        code-systems (index/read-metadata searcher "code-systems")]
     (reify
       ODS
       (fetch-org [_ root extension] (index/fetch-org searcher root extension))
       (search-org [_ params] (search searcher nhspd params))
       (all-organizations [_] (index/all-organizations reader searcher))
+      (code-systems [_] code-systems)
       (fetch-postcode [_ pc] (nhspd/fetch-postcode nhspd pc))
       (fetch-wgs84 [_ pc] (nhspd/fetch-wgs84 nhspd pc))
       Closeable
@@ -93,6 +96,16 @@
 (def namespace-ods-site "https://fhir.nhs.uk/Id/ods-site")
 (def orgRecordClass->namespace {:RC1 namespace-ods-organisation
                                 :RC2 namespace-ods-site})
+
+(defn get-role
+  "Return the role associated with code specified, e.g. \"RO72\"."
+  [ods role-code]
+  (get (code-systems ods) ["2.16.840.1.113883.2.1.3.2.4.17.507" role-code]))
+
+(defn get-relationship
+  "Return the relationship associated with code specified, e.g. \"RE6\""
+  [ods rel-code]
+  (get (code-systems ods) ["2.16.840.1.113883.2.1.3.2.4.17.508" rel-code]))
 
 (defn normalize-id
   "Normalizes an ODS identifier oid/extension to a URI/value with the URI
@@ -133,10 +146,33 @@
 
 (defn org-identifiers
   "Returns a normalised list of organisation identifiers.
-   This turns a single ODS orgId (oid/extension) into a list of uri/values."
+  The first will be the 'best' identifier to use for official use.
+  This turns a single ODS orgId (oid/extension) into a list of uri/values."
   [org]
-  [{:system (str "urn:oid:" (get-in org [:orgId :root])) :value (get-in org [:orgId :extension]) :type :org.hl7.fhir.identifier-use/old}
-   {:system (get orgRecordClass->namespace (:orgRecordClass org)) :value (get-in org [:orgId :extension]) :type :org.hl7.fhir.identifier-use/official}])
+  [{:system (get orgRecordClass->namespace (:orgRecordClass org)) :value (get-in org [:orgId :extension]) :type :org.hl7.fhir.identifier-use/official}
+   {:system (str "urn:oid:" (get-in org [:orgId :root])) :value (get-in org [:orgId :extension]) :type :org.hl7.fhir.identifier-use/old}])
+
+(def part-of-relationships
+  "A priority list of what relationship to use in order to
+  determine the more abstract 'part-of' relationship."
+  {"RE2" 1                                                  ;; is a subdivision
+   "RE3" 2                                                  ;; is directed by
+   "RE6" 3                                                  ;; is operated by
+   "RE4" 4                                                  ;; is commissioned by
+   })
+
+(defn org-part-of
+  "Returns a best-match of what we consider an organisation 'part-of'.
+  Returns a tuple of root extension."
+  [org]
+  (let [rel (->> (:relationships org)
+                 (map #(assoc % :priority (get part-of-relationships (:id %))))
+                 (filter :active)
+                 (filter :priority)
+                 (sort-by :priority)
+                 first)]
+    (when rel
+      [(get-in rel [:target :root]) (get-in rel [:target :extension])])))
 
 (defn normalize-org
   "Normalizes an organisation, turning legacy ODS OID/extension identifiers into
