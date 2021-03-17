@@ -37,7 +37,7 @@
 
 (defn make-coding [{:keys [codeSystem id displayName]}]
   (doto (Coding.)
-    (.setSystem codeSystem)
+    (.setSystem (str "urn:oid:" codeSystem))
     (.setCode id)
     (.setDisplay displayName)))
 
@@ -106,7 +106,8 @@
   (clods/org-identifiers org)
   (map make-identifier (clods/org-identifiers org))
 
-  (clods/get-role ods "RO72")
+  (def role (clods/get-role ods "RO72"))
+  (update role :codeSystem #(str "urn:oid:" %))
   (clods/get-role ods "RO116")
 
   (clods/get-relationship ods "RE11")

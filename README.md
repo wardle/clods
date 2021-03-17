@@ -136,6 +136,9 @@ Let's get NHS postcode data about a postcode:
 
 ```shell
 curl -H "Accept: application/json" localhost:8080/ods/v1/postcode/CF144XW
+```
+Result:
+```json
 {"CANNET":"N95","PCDS":"CF14 4XW","NHSER":"W92","SCN":"N95","PSED":"62UBFL16","CTRY":"W92000004","OA01":"W00009154","HRO":"W00","OLDHA":"QW2","RGN":"W99999999","OSWARD":"W05000864","LSOA01":"W01001770","OSNRTH1M":179319,"CANREG":"Y1101","OSHLTHAU":"7A4","CALNCV":"W99999999","OSGRDIND":"1","MSOA11":"W02000384","MSOA01":"W02000384","WARD98":"00PTMM","OLDHRO":"W00","CENED":"TNFL16","OLDPCT":"6A8","USERTYPE":"0","OSEAST1M":317551,"PCT":"7A4","PCD2":"CF14 4XW","NHSRLO":"W92","OSNRTH100M":1793,"DOTERM":"","STP":"W92","OSLAUA":"W06000015","OSHAPREV":"Q99","EDIND":"1","LSOA11":"W01001770","UR01IND":"5","CCG":"7A4","OSEAST100M":3175,"DOINTR":"199906","PCON":"W07000051","ODSLAUA":"052","OA11":"W00009154","OSCTY":"W99999999"}
 ```
 
@@ -187,17 +190,17 @@ Result:
   "active": true,
   "type": [ {
     "coding": [ {
-      "system": "2.16.840.1.113883.2.1.3.2.4.17.507",
+      "system": "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.507",
       "code": "RO72",
       "display": "OTHER PRESCRIBING COST CENTRE"
     } ]
   }, {
     "coding": [ {
-      "system": "2.16.840.1.113883.2.1.3.2.4.17.507",
+      "system": "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.507",
       "code": "RO177",
       "display": "PRESCRIBING COST CENTRE"
     }, {
-      "system": "http://hl7.org/fhir/ValueSet/organization-type",
+      "system": "urn:oid:http://hl7.org/fhir/ValueSet/organization-type",
       "code": "prov",
       "display": "Healthcare Provider"
     } ]
