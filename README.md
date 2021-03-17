@@ -129,10 +129,15 @@ an ODS index, and an NHSPD index as well as the port to run on.
 clj -M:serve /var/local/ods-2021-02  /var/local/nhspd-2020-11 8080
 ```
 
+You can now make a request to the server:
+```shell
+curl -H "Accept: application/json" "http://localhost:8080/ods/v1/search?s=hayesbank"
+```
+
 # Running a FHIR-compatible server
 
 ```shell
-clj -M:fhir-r4 /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+clj -M:fhir_r4 /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 ```
 
 # Development / contributing
