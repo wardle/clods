@@ -254,20 +254,21 @@ $ clj -M:lint/eastwood
 
 If you prefer, you can generate jar files which can be run easily at the command line.
 
-Build a utility uberjar and run it.
+Build a utility uberjar and run it. The utility uberjar helps you 
+build postcode and organisational indexes and keep them up-to-date.
 
 ```shell
 $ clj -X:uberjar
 $ java -jar target/clods-full-v0.1.0.jar --help
 ```
 
-Build a server uberjar and run it:
+Build a server uberjar and run it. This provides a simple REST API.
 ```shell
 $ clj -X:server-uberjar
 $ java -jar target/clods-rest-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 ```
 
-Build a FHIR server uberjar and run it:
+Build a FHIR server uberjar and run it. This provides a FHIR R4 server.
 ```shell
 $ clj -X:fhir-r4-uberjar
 $ java -jar target/clods-fhir-r4-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
