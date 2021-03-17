@@ -129,6 +129,34 @@ an ODS index, and an NHSPD index as well as the port to run on.
 clj -M:serve /var/local/ods-2021-02  /var/local/nhspd-2020-11 8080
 ```
 
+There are three endpoints:
+
+Let's get NHS postcode data about a postcode:
+
+```shell
+curl -H "Accept: application/json" localhost:8080/ods/v1/postcode/CF144XW
+{"CANNET":"N95","PCDS":"CF14 4XW","NHSER":"W92","SCN":"N95","PSED":"62UBFL16","CTRY":"W92000004","OA01":"W00009154","HRO":"W00","OLDHA":"QW2","RGN":"W99999999","OSWARD":"W05000864","LSOA01":"W01001770","OSNRTH1M":179319,"CANREG":"Y1101","OSHLTHAU":"7A4","CALNCV":"W99999999","OSGRDIND":"1","MSOA11":"W02000384","MSOA01":"W02000384","WARD98":"00PTMM","OLDHRO":"W00","CENED":"TNFL16","OLDPCT":"6A8","USERTYPE":"0","OSEAST1M":317551,"PCT":"7A4","PCD2":"CF14 4XW","NHSRLO":"W92","OSNRTH100M":1793,"DOTERM":"","STP":"W92","OSLAUA":"W06000015","OSHAPREV":"Q99","EDIND":"1","LSOA11":"W01001770","UR01IND":"5","CCG":"7A4","OSEAST100M":3175,"DOINTR":"199906","PCON":"W07000051","ODSLAUA":"052","OA11":"W00009154","OSCTY":"W99999999"}
+```
+
+Let's get ODS data about a known organisation:
+
+```shell
+curl -H "Accept: application/json" localhost:8080/ods/v1/organisation/7A4BV
+```
+
+Let's search for an organisation:
+
+Simple search by name:
+
+```shell
+curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?s=University%20Hospital%20Wales'
+```
+
+The underlying library supports search by organisation type/role as well as geographic
+searches to find organisations close to a particular postcode - ie useful in building
+operational user-facing applications or analytics. Documentation on how to use
+from web service forthcoming.
+
 # Running a FHIR-compatible server
 
 ```shell
