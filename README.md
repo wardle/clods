@@ -98,7 +98,7 @@ index you use for that.
 If not, let's get one set-up
 
 ```shell
-clj -M:nhspd /var/local/nhspd-2020-11
+$ clj -M:nhspd /var/local/nhspd-2020-11
 ```
 
 After a few minutes, the NHS postcode directory index will have been downloaded
@@ -112,7 +112,7 @@ Login to the [NHS Digital TRUD](https://isd.digital.nhs.uk/) and find your API k
 Write that key to a file and link to it from the command-line:
 
 ```shell
-clj -M:install --nhspd /var/local/nhspd-2020-11 --api-key /path/to/api-key.txt --cache-dir /var/tmp/trud /var/local/ods-2021-02
+$ clj -M:install --nhspd /var/local/nhspd-2020-11 --api-key /path/to/api-key.txt --cache-dir /var/tmp/trud /var/local/ods-2021-02
 ```
 
 `clods` will proceed to download the latest distribution files from TRUD, or use the existing
@@ -127,7 +127,7 @@ To run as a microservice, you need to include the paths of the both
 an ODS index, and an NHSPD index as well as the port to run on.
 
 ```shell
-clj -M:serve /var/local/ods-2021-02  /var/local/nhspd-2020-11 8080
+$ clj -M:serve /var/local/ods-2021-02  /var/local/nhspd-2020-11 8080
 ```
 
 There are three endpoints:
@@ -135,7 +135,7 @@ There are three endpoints:
 Let's get NHS postcode data about a postcode:
 
 ```shell
-curl -H "Accept: application/json" localhost:8080/ods/v1/postcode/CF144XW
+$ curl -H "Accept: application/json" localhost:8080/ods/v1/postcode/CF144XW
 ```
 Result:
 ```json
@@ -145,7 +145,7 @@ Result:
 Let's get ODS data about a known organisation:
 
 ```shell
-curl -H "Accept: application/json" localhost:8080/ods/v1/organisation/7A4BV
+$ curl -H "Accept: application/json" localhost:8080/ods/v1/organisation/7A4BV
 ```
 
 Let's search for an organisation:
@@ -153,7 +153,7 @@ Let's search for an organisation:
 Simple search by name:
 
 ```shell
-curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?s=University%20Hospital%20Wales'
+$ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?s=University%20Hospital%20Wales'
 ```
 
 The underlying library supports search by organisation type/role as well as geographic
@@ -164,13 +164,13 @@ from web service forthcoming.
 # Running a FHIR-compatible server
 
 ```shell
-clj -M:fhir-r4 /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+$ clj -M:fhir-r4 /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 ```
 
 Let's try it:
 
 ```shell
-http --json 'http://localhost:8080/fhir/Organization/2.16.840.1.113883.2.1.3.2.4.18.48|W93036' 
+$ http --json 'http://localhost:8080/fhir/Organization/2.16.840.1.113883.2.1.3.2.4.18.48|W93036' 
 ```
 
 Result:
@@ -234,20 +234,20 @@ Result:
 Check for outdated dependencies:
 
 ```shell
-clj -M:outdated
+$ clj -M:outdated
 ```
 
 Perform compilation checks (optional)
 
 ```shell
-clj -M:check
+$ clj -M:check
 ```
 
 Perform linting (optional)
 
 ```shell 
-clj -M:lint/kondo
-clj -M:lint/eastwood
+$ clj -M:lint/kondo
+$ clj -M:lint/eastwood
 ```
 
 # Building executable files 
@@ -257,20 +257,20 @@ If you prefer, you can generate jar files which can be run easily at the command
 Build a utility uberjar and run it.
 
 ```shell
-clj -X:uberjar
-java -jar target/clods-full-v0.1.0.jar --help
+$ clj -X:uberjar
+$ java -jar target/clods-full-v0.1.0.jar --help
 ```
 
 Build a server uberjar and run it:
 ```shell
-clj -X:server-uberjar
-java -jar target/clods-rest-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+$ clj -X:server-uberjar
+$ java -jar target/clods-rest-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 ```
 
 Build a FHIR server uberjar and run it:
 ```shell
-clj -X:fhir-r4-uberjar
-java -jar target/clods-fhir-r4-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+$ clj -X:fhir-r4-uberjar
+$ java -jar target/clods-fhir-r4-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 ```
 
 You can pass these standalone jar files around; they have no dependencies.
