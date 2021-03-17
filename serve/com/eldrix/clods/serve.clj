@@ -1,5 +1,6 @@
 (ns com.eldrix.clods.serve
   "Provides a web service for organisational and geographic health and care data."
+  (:gen-class)
   (:require [cheshire.core :as json]
             [clojure.tools.logging.readable :as log]
             [io.pedestal.http :as http]

@@ -60,7 +60,8 @@ As such, this, and the other `PatientCare` services are designed to automate as 
 # Getting started: 
 
 You'll need to install [clojure](https://www.clojure.org) for the best experience
-but it is possible to run using a pre-built jar.
+but it is possible to run using a pre-built jar. See below for information
+about the jar files.
 
 # Importing data
 
@@ -163,6 +164,68 @@ from web service forthcoming.
 clj -M:fhir-r4 /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 ```
 
+Let's try it:
+
+```shell
+http --json 'http://localhost:8080/fhir/Organization/2.16.840.1.113883.2.1.3.2.4.18.48|W93036' 
+```
+
+Result:
+```json
+{
+  "resourceType": "Organization",
+  "id": "W93036",
+  "identifier": [ {
+    "use": "official",
+    "system": "https://fhir.nhs.uk/Id/ods-organization",
+    "value": "W93036"
+  }, {
+    "use": "old",
+    "system": "urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48",
+    "value": "W93036"
+  } ],
+  "active": true,
+  "type": [ {
+    "coding": [ {
+      "system": "2.16.840.1.113883.2.1.3.2.4.17.507",
+      "code": "RO72",
+      "display": "OTHER PRESCRIBING COST CENTRE"
+    } ]
+  }, {
+    "coding": [ {
+      "system": "2.16.840.1.113883.2.1.3.2.4.17.507",
+      "code": "RO177",
+      "display": "PRESCRIBING COST CENTRE"
+    }, {
+      "system": "http://hl7.org/fhir/ValueSet/organization-type",
+      "code": "prov",
+      "display": "Healthcare Provider"
+    } ]
+  } ],
+  "name": "CASTLE GATE MEDICAL PRACTICE",
+  "telecom": [ {
+    "system": "phone",
+    "value": "01600 713811"
+  } ],
+  "address": [ {
+    "line": [ "REAR OF MONNOW STREET" ],
+    "city": "MONMOUTH",
+    "district": "GWENT",
+    "postalCode": "NP25 3EQ",
+    "country": "WALES"
+  } ],
+  "partOf": {
+    "type": "Organization",
+    "identifier": {
+      "use": "official",
+      "system": "https://fhir.nhs.uk/Id/ods-organization",
+      "value": "7A6"
+    },
+    "display": "ANEURIN BEVAN UNIVERSITY LHB"
+  }
+}
+```
+
 # Development / contributing
 
 Check for outdated dependencies:
@@ -184,11 +247,29 @@ clj -M:lint/kondo
 clj -M:lint/eastwood
 ```
 
-Build an uberjar and run it.
+# Building executable files 
+
+If you prefer, you can generate jar files which can be run easily at the command line.
+
+Build a utility uberjar and run it.
 
 ```shell
 clj -X:uberjar
 java -jar target/clods-full-v0.1.0.jar --help
 ```
+
+Build a server uberjar and run it:
+```shell
+clj -X:server-uberjar
+java -jar target/clods-rest-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+```
+
+Build a FHIR server uberjar and run it:
+```shell
+clj -X:fhir-r4-uberjar
+java -jar target/clods-fhir-r4-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+```
+
+You can pass these standalone jar files around; they have no dependencies.
 
 Copyright © 2020-21 Eldrix Ltd and Mark Wardle

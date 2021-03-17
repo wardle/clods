@@ -1,4 +1,5 @@
 (ns com.eldrix.clods.fhir.r4.serve
+  (:gen-class)
   (:require [clojure.string :as str]
             [clojure.tools.logging.readable :as log]
             [com.eldrix.clods.core :as clods]
