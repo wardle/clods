@@ -3,26 +3,27 @@
 [![Scc Count Badge](https://sloc.xyz/github/wardle/clods)](https://github.com/wardle/clods/)
 [![Scc Cocomo Badge](https://sloc.xyz/github/wardle/clods?category=cocomo&avg-wage=100000)](https://github.com/wardle/clods/)
 
-A web service and set of tools for manipulating UK health and care organisational data.
+A web service and set of tools for UK health and care organisational data.
 
 Health and Social Care Organisation Reference Data is published by NHS Digital 
 under standard [DCB0090](https://digital.nhs.uk/data-and-information/information-standards/information-standards-and-data-collections-including-extractions/publications-and-notifications/standards-and-collections/dcb0090-health-and-social-care-organisation-reference-data).
 
-
 `clods` is designed to provide "location" services down to the granularity of an organisational site using 
 this reference data.
-
-More finely-grained location services (e.g. ward, bed) are provided by other modules
-as part of a unified [concierge location service](https://github.com/wardle/concierge). 
-Ward and bed location and status data are usually provided as part of a patient administrative system rather than reference data services, but
-this aims to provide a seamless application programming interface (API) in order to 
-appropriately record the context of the capture of any clinical data. 
 
 `clods` part of a suite of supporting foundational data and computing services that help to
 answer questions about the 'who', 'what', 'when', 'how' and 'why' of health and care data.
 
 This software provides both a library and web service. As a library, it can easily be embedded into a larger
 application. As a microservice, it can easily be embedded into a suite of foundational platform services.
+It provides both a plain REST API as well as a HL7 FHIR API (r4).
+
+More finely-grained location services (e.g. ward, bed) are provided by other modules
+as part of a unified [concierge location service](https://github.com/wardle/concierge).
+Ward and bed location and status data are usually provided as part of a patient administrative system rather than reference data services, but
+this aims to provide a seamless application programming interface (API) in order to
+appropriately record the context of the capture of any clinical data.
+
 
 #### Design goals
 
