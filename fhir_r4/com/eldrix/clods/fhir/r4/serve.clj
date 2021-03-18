@@ -67,13 +67,14 @@
             ^{:tag ca.uhn.fhir.rest.param.TokenOrListParam OptionalParam {:name "type"}} org-types]
     (if-not (or org-name address org-types)
       (throw (ResourceNotFoundException. "no search parameters."))
-      (let [_ (log/info "roles: " (map parse-internal-coding-dt (.getListAsCodings org-types)))
-            roles (when org-types (->> (.getListAsCodings org-types)
+      (let [roles (when org-types (->> (.getListAsCodings org-types)
                                        (map parse-internal-coding-dt)
                                        (map #(if (or (= "2.16.840.1.113883.2.1.3.2.4.17.507" (:system %)) (= "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.507" (:system %))) (:value %) "XXX"))))
             params (cond-> {}
                            org-name
-                           (assoc :s (.getValue org-name))
+                           (assoc :n (.getValue org-name))
+                           address
+                           (assoc :address (.getValue address))
                            roles
                            (assoc :roles roles))]
         (if-not (seq params)

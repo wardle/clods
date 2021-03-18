@@ -42,12 +42,13 @@
               (.add (StringField. "extension" ^String (get-in org [:orgId :extension]) Field$Store/NO))
               (.add (TextField. "name" (:name org) Field$Store/YES))
               (.add (StringField. "active" (str (:active org)) Field$Store/NO))
-              (.add (StringField. "address"
-                                  (str/join " " [(get-in org [:location :address1])
-                                                 (get-in org [:location :address2])
-                                                 (get-in org [:location :county])
-                                                 (get-in org [:location :postcode])
-                                                 (get-in org [:location :country])]) Field$Store/NO)))]
+              (.add (TextField. "address"
+                                (str/join " " [(get-in org [:location :address1])
+                                               (get-in org [:location :address2])
+                                               (get-in org [:location :town])
+                                               (get-in org [:location :county])
+                                               (get-in org [:location :postcode])
+                                               (get-in org [:location :country])]) Field$Store/NO)))]
     (when (and lat long)
       (.add doc (LatLonPoint. "latlon" lat long))
       (.add doc (LatLonDocValuesField. "latlon" lat long)))
@@ -95,6 +96,14 @@
         (doto (a/chan) (a/close!))                          ;; output channel - /dev/null
         (map (partial write-batch! writer nhspd))
         ch))
+    (.forceMerge writer 1)))
+
+(defn install-index
+  "Install an index into the directory 'out' using the data provided."
+  [^NHSPD nhspd {:keys [organisations code-systems]} out]
+  (build-index nhspd organisations out)
+  (with-open [writer (open-index-writer out)]
+    (write-metadata writer "code-systems" code-systems)
     (.forceMerge writer 1)))
 
 (defn ^IndexReader open-index-reader
@@ -218,6 +227,11 @@
   ([s fuzzy]
    (q-tokens "name" s fuzzy)))
 
+(defn q-address
+  ([s] (q-address s 0))
+  ([s fuzzy]
+   (q-tokens "address" s fuzzy)))
+
 (defn sort-by-distance
   "Creates an Apache Lucene 'Sort' based on distance from the location given."
   ([[lat lon]] (sort-by-distance lat lon))
@@ -253,8 +267,10 @@
 (defn make-search-query
   "Create a search query for an organisation.
   Parameters:
-  - :s             : search for name of organisation
-  - :fuzzy         : fuzziness factor (0-2)serve
+  - :s             : search for name or address of organisation
+  - :n          : search for name of organisation
+  - :address       : search within address of organisation
+  - :fuzzy         : fuzziness factor (0-2)
   - :only-active?  : only include active organisations (default, true)
   - :roles         : a string or vector of roles
   - :from-location : a map containing:
@@ -262,11 +278,17 @@
        - :lon     : longitude (WGS84)
        - :range   : range in metres (optional)
   - limit         : limit on number of search results"
-  [{:keys [s fuzzy only-active? from-location roles _limit] :or {fuzzy 0 only-active? true}}]
+  [{:keys [s n address fuzzy only-active? from-location roles _limit] :or {fuzzy 0 only-active? true}}]
   (let [{:keys [lat lon range]} from-location]
     (q-and (cond-> []
                    s
-                   (conj (q-name s fuzzy))
+                   (conj (q-or [(q-name s fuzzy) (q-address s fuzzy)]))
+
+                   n
+                   (conj (q-name n fuzzy))
+
+                   address
+                   (conj (q-address address fuzzy))
 
                    roles
                    (conj (q-roles roles))
@@ -287,12 +309,13 @@
 
   Warning: the results are lazily evaluated, so use `doall` if you plan
   on closing the IndexReader before processing the results."
-  [^IndexSearcher searcher {:keys [_s _only-active? _roles from-location limit] :or {limit 1000} :as q}]
+  [^IndexSearcher searcher {:keys [_s _n _only-active? _roles from-location limit] :or {limit 1000} :as q}]
   (let [query (make-search-query q)
         {:keys [lat lon]} from-location
         result (if (and lat lon)
                  (do-raw-query searcher query limit (sort-by-distance lat lon))
                  (do-raw-query searcher query limit))]
+    (println "Search query:" query)
     (map doc->organisation result)))
 
 (comment
@@ -320,7 +343,7 @@
   ;; search for an organisation
   (def reader (open-index-reader "/var/tmp/ods"))
   (def searcher (IndexSearcher. reader))
-  (get-metadata searcher "code-systems")
+  (read-metadata searcher "code-systems")
   (q-orgId "BE1EC")
   (fetch-org searcher "7A4BV")
 
@@ -349,5 +372,7 @@
     (search searcher {:s "caslte gate" :fuzzy 2 :from-location {:lat lat :lon lon} :roles "RO72"}))
 
   (take 1 (all-organizations reader searcher))
+  (search searcher {:address "MONMOUTH" :roles "RO177"})
+  (search searcher {:s "castle gate" :roles "RO177"})
   )
 

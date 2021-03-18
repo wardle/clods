@@ -27,7 +27,7 @@
   [^String dir ^NHSPD nhspd api-key cache-dir]
   (log/info "Installing NHS organisational data index to:" dir)
   (let [ods (download {:api-key api-key :cache-dir cache-dir})]
-    (index/build-index nhspd (:organisations ods) dir))
+    (index/install-index nhspd ods dir))
   (log/info "Finished creating index at " dir))
 
 (defn merge-coords-from-postcode
@@ -48,7 +48,9 @@
   - searcher : A Lucene IndexSearcher
   - nhspd    : NHS postcode directory service
   - params   : Search parameters; a map containing:
-    |- :s             : search for name of organisation
+    |- :s             : search for name or address of organisation
+    |- :n             : search for name of organisation
+    |- :address       : search within address
     |- :fuzzy         : fuzziness factor (0-2)
     |- :only-active?  : only include active organisations (default, true)
     |- :roles         : a string or vector of roles
