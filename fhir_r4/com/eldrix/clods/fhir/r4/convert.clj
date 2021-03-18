@@ -37,13 +37,13 @@
 
 (defn make-coding [{:keys [codeSystem id displayName]}]
   (doto (Coding.)
-    (.setSystem (str "urn:oid:" codeSystem))
+    (.setSystem codeSystem)
     (.setCode id)
     (.setDisplay displayName)))
 
 (defn ^CodeableConcept make-organization-type [^ODS ods {:keys [id isPrimary]}]
   (let [role (clods/get-role ods id)
-        coding (make-coding role)
+        coding (make-coding (update role :codeSystem #(str "urn:oid:" %)))
         codings (if-not isPrimary
                   [coding]
                   (let [role-code (get role->r4 id "prov")]
@@ -107,6 +107,9 @@
   (map make-identifier (clods/org-identifiers org))
 
   (def role (clods/get-role ods "RO72"))
+  role
+  (update role :codeSystem #(str "urn:oid:" %))
+  (make-coding role)
   (update role :codeSystem #(str "urn:oid:" %))
   (clods/get-role ods "RO116")
 

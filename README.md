@@ -172,7 +172,7 @@ $ clj -M:fhir-r4 /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 Let's try it:
 
 ```shell
-$ http --json 'http://localhost:8080/fhir/Organization/2.16.840.1.113883.2.1.3.2.4.18.48|W93036' 
+$ curl -H "Accept: application/json" 'http://localhost:8080/fhir/Organization/2.16.840.1.113883.2.1.3.2.4.18.48|W93036' 
 ```
 
 Result:
@@ -180,45 +180,62 @@ Result:
 {
   "resourceType": "Organization",
   "id": "W93036",
-  "identifier": [ {
-    "use": "official",
-    "system": "https://fhir.nhs.uk/Id/ods-organization",
-    "value": "W93036"
-  }, {
-    "use": "old",
-    "system": "urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48",
-    "value": "W93036"
-  } ],
+  "identifier": [
+    {
+      "use": "official",
+      "system": "https://fhir.nhs.uk/Id/ods-organization",
+      "value": "W93036"
+    },
+    {
+      "use": "old",
+      "system": "urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48",
+      "value": "W93036"
+    }
+  ],
   "active": true,
-  "type": [ {
-    "coding": [ {
-      "system": "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.507",
-      "code": "RO72",
-      "display": "OTHER PRESCRIBING COST CENTRE"
-    } ]
-  }, {
-    "coding": [ {
-      "system": "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.507",
-      "code": "RO177",
-      "display": "PRESCRIBING COST CENTRE"
-    }, {
-      "system": "urn:oid:http://hl7.org/fhir/ValueSet/organization-type",
-      "code": "prov",
-      "display": "Healthcare Provider"
-    } ]
-  } ],
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.507",
+          "code": "RO72",
+          "display": "OTHER PRESCRIBING COST CENTRE"
+        }
+      ]
+    },
+    {
+      "coding": [
+        {
+          "system": "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.507",
+          "code": "RO177",
+          "display": "PRESCRIBING COST CENTRE"
+        },
+        {
+          "system": "http://hl7.org/fhir/ValueSet/organization-type",
+          "code": "prov",
+          "display": "Healthcare Provider"
+        }
+      ]
+    }
+  ],
   "name": "CASTLE GATE MEDICAL PRACTICE",
-  "telecom": [ {
-    "system": "phone",
-    "value": "01600 713811"
-  } ],
-  "address": [ {
-    "line": [ "REAR OF MONNOW STREET" ],
-    "city": "MONMOUTH",
-    "district": "GWENT",
-    "postalCode": "NP25 3EQ",
-    "country": "WALES"
-  } ],
+  "telecom": [
+    {
+      "system": "phone",
+      "value": "01600 713811"
+    }
+  ],
+  "address": [
+    {
+      "line": [
+        "REAR OF MONNOW STREET"
+      ],
+      "city": "MONMOUTH",
+      "district": "GWENT",
+      "postalCode": "NP25 3EQ",
+      "country": "WALES"
+    }
+  ],
   "partOf": {
     "type": "Organization",
     "identifier": {
