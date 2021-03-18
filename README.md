@@ -157,11 +157,23 @@ Simple search by name:
 $ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?s=University%20Hospital%20Wales'
 ```
 
-Let's search for general practitioners within 1000m of a specific postcode.
+Let's search for GP surgeries within 1000m of a specific postcode.
 
 ```shell
 $ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?roles=RO177&from-postcode=CF144XW&range=1000'
 ```
+
+Result (here I pipe through jq to just give me the names):
+```
+$ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?roles=RO177&from-postcode=CF144XW&range=1000' | jq '.[] | .name'
+"OUT OF HOURS SERVICE"
+"WHITCHURCH ROAD SURGERY"
+"CRWYS MEDICAL CENTRE"
+"NORTH ROAD MEDICAL PRACTICE"
+```
+
+The results will be sorted by distance.
+
 
 # Running a FHIR-compatible server
 
