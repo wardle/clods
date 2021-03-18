@@ -174,6 +174,106 @@ $ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?roles=RO177&f
 
 The results will be sorted by distance.
 
+Each result is annotated with WGS84 latitude and longitude, to make it easier
+for onward geographical processing/plotting.
+
+```shell
+$ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?s=crwys&roles=RO177&from-postcode=CF144XW&range=1000' | jq              
+[
+  {
+    "orgId": {
+      "root": "2.16.840.1.113883.2.1.3.2.4.18.48",
+      "assigningAuthorityName": "HSCIC",
+      "extension": "W97041"
+    },
+    "contacts": [
+      {
+        "type": "tel",
+        "value": "029 20524140"
+      }
+    ],
+    "name": "CRWYS MEDICAL CENTRE",
+    "operational": {
+      "start": "1974-04-01",
+      "end": null
+    },
+    "roles": [
+      {
+        "id": "RO72",
+        "isPrimary": false,
+        "active": true,
+        "startDate": "2014-04-15",
+        "endDate": null
+      },
+      {
+        "id": "RO177",
+        "isPrimary": true,
+        "active": true,
+        "startDate": "1974-04-01",
+        "endDate": null
+      }
+    ],
+    "orgRecordClass": "RC1",
+    "active": true,
+    "primaryRole": {
+      "id": "RO177",
+      "isPrimary": true,
+      "active": true,
+      "startDate": "1974-04-01",
+      "endDate": null
+    },
+    "relationships": [
+      {
+        "id": "RE4",
+        "startDate": "1999-04-01",
+        "endDate": "2003-03-31",
+        "active": false,
+        "target": {
+          "root": "2.16.840.1.113883.2.1.3.2.4.18.48",
+          "assigningAuthorityName": "HSCIC",
+          "extension": "4WK03"
+        }
+      },
+      {
+        "id": "RE4",
+        "startDate": "2009-10-01",
+        "endDate": null,
+        "active": true,
+        "target": {
+          "root": "2.16.840.1.113883.2.1.3.2.4.18.48",
+          "assigningAuthorityName": "HSCIC",
+          "extension": "7A4"
+        }
+      },
+      {
+        "id": "RE4",
+        "startDate": "2003-04-01",
+        "endDate": "2009-09-30",
+        "active": false,
+        "target": {
+          "root": "2.16.840.1.113883.2.1.3.2.4.18.48",
+          "assigningAuthorityName": "HSCIC",
+          "extension": "6A8"
+        }
+      }
+    ],
+    "location": {
+      "address1": "THE CRWYS SURGERY",
+      "address2": "WEDAL ROAD",
+      "town": "CARDIFF",
+      "county": "SOUTH GLAMORGAN",
+      "postcode": "CF14 3QX",
+      "country": "WALES",
+      "uprn": "10008905579",
+      "latlon": [
+        52.714814004647714,
+        -5.273869588498894
+      ]
+    },
+    "isReference": false
+  }
+]
+```
 
 # Running a FHIR-compatible server
 
