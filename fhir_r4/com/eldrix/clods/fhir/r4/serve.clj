@@ -14,9 +14,18 @@
            (org.eclipse.jetty.server Server ServerConnector)
            (com.eldrix.clods.core ODS)
            (javax.servlet Servlet)
-           (ca.uhn.fhir.rest.server.exceptions ResourceNotFoundException)))
+           (ca.uhn.fhir.rest.server.exceptions ResourceNotFoundException)
+           (ca.uhn.fhir.rest.param InternalCodingDt)))
 
+
+
+(defn parse-internal-coding-dt [^InternalCodingDt icdt]
+  {:system (.getValueAsString (.getSystemElement icdt))
+   :value  (.getValueAsString (.getCodeElement icdt))})
+
+;;
 ;; we have to define interfaces for `deftype` to be able to implement them
+;;
 
 (definterface OrganizationGetResourceById
   (^org.hl7.fhir.r4.model.Organization getResourceById [^org.hl7.fhir.r4.model.IdType id]))
@@ -58,13 +67,18 @@
             ^{:tag ca.uhn.fhir.rest.param.TokenOrListParam OptionalParam {:name "type"}} org-types]
     (if-not (or org-name address org-types)
       (throw (ResourceNotFoundException. "no search parameters."))
-      (let [params (cond-> {}
+      (let [_ (log/info "roles: " (map parse-internal-coding-dt (.getListAsCodings org-types)))
+            roles (when org-types (->> (.getListAsCodings org-types)
+                                       (map parse-internal-coding-dt)
+                                       (map #(if (or (= "2.16.840.1.113883.2.1.3.2.4.17.507" (:system %)) (= "urn:oid:2.16.840.1.113883.2.1.3.2.4.17.507" (:system %))) (:value %) "XXX"))))
+            params (cond-> {}
                            org-name
-                           (assoc :s (.getValue org-name)))]
+                           (assoc :s (.getValue org-name))
+                           roles
+                           (assoc :roles roles))]
         (if-not (seq params)
           (throw (ResourceNotFoundException. "no supported search parameters."))
           (do
-            (println "searching for " params)
             (map (partial r4convert/make-organization ods) (clods/search-org ods params))))))))
 
 (defn ^Servlet make-r4-servlet [^ODS ods]
