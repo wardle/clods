@@ -157,11 +157,11 @@ Simple search by name:
 $ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?s=University%20Hospital%20Wales'
 ```
 
+Let's search for general practitioners within 1000m of a specific postcode.
 
-The underlying library supports search by organisation type/role as well as geographic
-searches to find organisations close to a particular postcode - ie useful in building
-operational user-facing applications or analytics. Documentation on how to use
-from web service forthcoming.
+```shell
+$ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?roles=RO177&from-postcode=CF144XW&range=1000'
+```
 
 # Running a FHIR-compatible server
 
