@@ -53,14 +53,14 @@
            :check           {:extra-deps {athos/clj-check
                                           {:git/url "https://github.com/athos/clj-check.git"
                                            :sha     "cd1f25456de5eebda0a69602dd3445905382b3a4"}}
-                             :main-opts  ["-m" "clj-check.check"]}
+                             :main-opts  ["-m" "clj-check.check" "src" "fhir_r4" "serve"]}
 
            :lint/kondo
                             {:extra-deps {clj-kondo/clj-kondo {:mvn/version "RELEASE"}}
                              :main-opts  ["-m" "clj-kondo.main" "--lint" "src"]}
 
            :lint/eastwood
-                            {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src"]}]
+                            {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src" "fhir_r4" "serve"]}]
                              :extra-deps {jonase/eastwood {:mvn/version "RELEASE"}}}
 
            :jar             {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.193"}}
