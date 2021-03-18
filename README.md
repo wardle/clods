@@ -240,7 +240,7 @@ $ clj -M:outdated
 Perform compilation checks (optional)
 
 ```shell
-$ clj -M:check
+$ clj -M:fhir-r4:serve:check
 ```
 
 Perform linting (optional)
