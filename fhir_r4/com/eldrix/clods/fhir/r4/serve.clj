@@ -8,23 +8,24 @@
   (:import (ca.uhn.fhir.rest.server RestfulServer IResourceProvider)
            (ca.uhn.fhir.context FhirContext)
            (org.hl7.fhir.r4.model Organization IdType Address Identifier)
-           (ca.uhn.fhir.rest.annotation Read IdParam Search RequiredParam)
+           (ca.uhn.fhir.rest.annotation Read IdParam Search RequiredParam OptionalParam)
            (org.eclipse.jetty.servlet ServletContextHandler ServletHolder)
            (ca.uhn.fhir.rest.server.interceptor ResponseHighlighterInterceptor)
            (org.eclipse.jetty.server Server ServerConnector)
            (com.eldrix.clods.core ODS)
            (javax.servlet Servlet)
-           (ca.uhn.fhir.rest.server.exceptions ResourceNotFoundException)
-           (java.util List)
-           (ca.uhn.fhir.rest.param TokenParam)))
+           (ca.uhn.fhir.rest.server.exceptions ResourceNotFoundException)))
 
+;; we have to define interfaces for `deftype` to be able to implement them
 
 (definterface OrganizationGetResourceById
   (^org.hl7.fhir.r4.model.Organization getResourceById [^org.hl7.fhir.r4.model.IdType id]))
 
 (definterface OrganizationSearch
-  (^java.util.List searchByIdentifier [^ca.uhn.fhir.rest.param.TokenParam id]))
-
+  (^java.util.List searchByIdentifier [^ca.uhn.fhir.rest.param.TokenParam id])
+  (^java.util.List search [^ca.uhn.fhir.rest.param.StringParam name
+                           ^ca.uhn.fhir.rest.param.StringParam address
+                           ^ca.uhn.fhir.rest.param.TokenOrListParam org-type]))
 
 (deftype OrganizationResourceProvider [^ODS ods]
   IResourceProvider
@@ -41,16 +42,30 @@
         (r4convert/make-organization ods org)
         (throw (ResourceNotFoundException. id)))))
   OrganizationSearch
-  (^{:tag   java.util.List
-     Search true}
-    searchByIdentifier [_this ^{:tag          ca.uhn.fhir.rest.param.TokenParam
-                                RequiredParam {:name "identifier"}} id]
+  (^{:tag java.util.List Search true}
+    searchByIdentifier [_this
+                        ^{:tag ca.uhn.fhir.rest.param.TokenParam RequiredParam {:name "identifier"}} id]
     (let [root (get r4convert/fhir-system->oid (.getSystem id))
           extension (.getValue id)
           org (clods/fetch-org ods root extension)]
       (if org
         [(r4convert/make-organization ods org)]
-        (throw (ResourceNotFoundException. (str id)))))))
+        (throw (ResourceNotFoundException. (str id))))))
+  (^{:tag java.util.List Search true}
+    search [_this
+            ^{:tag ca.uhn.fhir.rest.param.StringParam OptionalParam {:name "name"}} org-name
+            ^{:tag ca.uhn.fhir.rest.param.StringParam OptionalParam {:name "address"}} address
+            ^{:tag ca.uhn.fhir.rest.param.TokenOrListParam OptionalParam {:name "type"}} org-types]
+    (if-not (or org-name address org-types)
+      (throw (ResourceNotFoundException. "no search parameters."))
+      (let [params (cond-> {}
+                           org-name
+                           (assoc :s (.getValue org-name)))]
+        (if-not (seq params)
+          (throw (ResourceNotFoundException. "no supported search parameters."))
+          (do
+            (println "searching for " params)
+            (map (partial r4convert/make-organization ods) (clods/search-org ods params))))))))
 
 (defn ^Servlet make-r4-servlet [^ODS ods]
   (proxy [RestfulServer] [(FhirContext/forR4)]
