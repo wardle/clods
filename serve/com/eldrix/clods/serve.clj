@@ -66,17 +66,42 @@
      (let [svc (get-in context [:request ::service])
            org-id (get-in context [:request :path-params :org-id])
            org (when org-id (clods/fetch-org svc nil org-id))]
-         (assoc context :result org)))})
+       (assoc context :result org)))})
 
-;; TODO: add more input validation / limits
+;;  params   : Search parameters; a map containing:
+;    |- :s             : search for name or address of organisation
+;    |- :n             : search for name of organisation
+;    |- :address       : search within address
+;    |- :fuzzy         : fuzziness factor (0-2)
+;    |- :only-active?  : only include active organisations (default, true)
+;    |- :roles         : a string or vector of roles
+;    |- :from-postcode : postcode
+;    |- :from-lat      : WGS84 latitude
+;    |- :from-long     ; WGS84 longitude
+;    |- :range          :range
+;    |- :limit      : limit on number of search results.
 (def search-org
   {:name
    ::search-org
    :enter
    (fn [context]
      (let [svc (get-in context [:request ::service])
-           params (get-in context [:request :params])]
-       (assoc context :result (clods/search-org svc params))))})
+           params (get-in context [:request :params])
+           {:keys [name from-postcode from-lat from-long range]} params
+           range-int (when range (Long/parseLong range))
+           params' (cond-> params
+                           name
+                           (assoc :n name)
+
+                           from-postcode
+                           (assoc :from-location {:postcode from-postcode})
+
+                           (and from-lat from-long)
+                           (assoc :from-location {:lat from-lat :long from-long})
+
+                           range-int
+                           (update-in [:from-location] assoc :range range-int))]
+       (assoc context :result (clods/search-org svc params'))))})
 
 (def get-postcode
   {:name
