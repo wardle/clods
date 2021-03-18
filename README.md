@@ -156,6 +156,7 @@ Simple search by name:
 $ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?s=University%20Hospital%20Wales'
 ```
 
+
 The underlying library supports search by organisation type/role as well as geographic
 searches to find organisations close to a particular postcode - ie useful in building
 operational user-facing applications or analytics. Documentation on how to use
@@ -227,6 +228,20 @@ Result:
     "display": "ANEURIN BEVAN UNIVERSITY LHB"
   }
 }
+```
+
+The FHIR API also supports search by a variety of parameters.
+
+Let's search for general practices in Monmouth
+
+```shell
+$ curl -H "Accept: application/json" 'localhost:8080/fhir/Organization?address=monmouth&type=2.16.840.1.113883.2.1.3.2.4.17.507|RO177'
+```
+
+Or search for a named GP surgery:
+
+```shell
+$ curl -H "Accept: application/json" 'localhost:8080/fhir/Organization?name=Whitchurch&address=Wales&type=2.16.840.1.113883.2.1.3.2.4.17.507|RO177'
 ```
 
 # Development / contributing
