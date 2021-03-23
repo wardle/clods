@@ -275,7 +275,7 @@ $ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?s=crwys&roles
 ]
 ```
 
-# Running a FHIR-compatible server
+# Running a FHIR-compatible server 🔥
 
 ```shell
 $ clj -M:fhir-r4 /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
