@@ -47,12 +47,12 @@
 
            :log             {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}}
 
-           :outdated        {:extra-deps {antq/antq {:mvn/version "RELEASE"}}
+           :outdated        {:extra-deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
                              :main-opts  ["-m" "antq.core"]}
 
            :check           {:extra-deps {athos/clj-check
                                           {:git/url "https://github.com/athos/clj-check.git"
-                                           :sha     "cd1f25456de5eebda0a69602dd3445905382b3a4"}}
+                                           :sha     "518d5a1cbfcd7c952f548e6dbfcb9a4a5faf9062"}}
                              :main-opts  ["-m" "clj-check.check" "src" "fhir_r4" "serve"]}
 
            :lint/kondo
@@ -63,25 +63,25 @@
                             {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src" "fhir_r4" "serve"]}]
                              :extra-deps {jonase/eastwood {:mvn/version "RELEASE"}}}
 
-           :jar             {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.193"}}
+           :jar             {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.206"}}
                              :exec-fn      hf.depstar/jar
                              :exec-args    {:jar "target/clods-v0.1.0.jar"}}
 
            ;; build a utility uberjar - just the command-line tools
-           :uberjar         {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.193"}}
+           :uberjar         {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.206"}}
                              :exec-fn      hf.depstar/uberjar
                              :exec-args    {:jar        "target/clods-full-v0.1.0.jar"
                                             :aot        true
-                                            :main-class com.eldrix.clods.cli}}
+                                            :main-class com.eldrix.clods.core}}
 
-           :server-uberjar  {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.193"}}
+           :server-uberjar  {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.206"}}
                              :exec-fn      hf.depstar/uberjar
                              :exec-args    {:jar        "target/clods-rest-server-v0.1.0.jar"
                                             :aliases    [:serve]
                                             :aot        true
                                             :main-class com.eldrix.clods.serve}}
 
-           :fhir-r4-uberjar {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.193"}}
+           :fhir-r4-uberjar {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.206"}}
                              :exec-fn      hf.depstar/uberjar
                              :exec-args    {:jar        "target/clods-fhir-r4-server-v0.1.0.jar"
                                             :aliases    [:fhir-r4]
