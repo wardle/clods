@@ -166,9 +166,7 @@
     (let [[ods-path nhspd-path port] args
           svc (clods/open-index ods-path nhspd-path)
           port' (Integer/parseInt port)]
-      (log/info "starting NHS ODS server on port " port')
-      (log/info "ODS index: " ods-path)
-      (log/info "NHSPD index: "nhspd-path)
+      (log/info "starting NHS ODS server" {:port port' :ods-index ods-path :nhspd-index nhspd-path})
       (start-server svc port'))))
 
 (comment
@@ -176,7 +174,7 @@
     (require '[io.pedestal.test])
     (defn test-request [verb url]
       (io.pedestal.test/response-for (::http/service-fn @server) verb url))
-    (def ods (clods/open-index "/var/tmp/ods" "/tmp/nhspd-2021-02")))
+    (def ods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd")))
   (start-dev ods 8080)
   (restart ods 8080)
   (test-request :get "/ods/v1/organisation/rwmbv")
