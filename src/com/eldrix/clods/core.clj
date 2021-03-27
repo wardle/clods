@@ -196,17 +196,17 @@
 
 (comment
 
-  (with-open [idx (open-index "/var/tmp/ods" "/tmp/nhspd-2021-02")]
+  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
     (fetch-org idx nil "RWMBV"))
 
-  (with-open [idx (open-index "/var/tmp/ods" "/tmp/nhspd-2021-02")]
+  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
     (doall (search-org idx {:s "vale" :limit 1})))
 
-  (with-open [idx (open-index "/var/tmp/ods" "/tmp/nhspd-2021-02")]
+  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
     (doall (search-org idx {:s "vale" :limit 2 :from-location {:postcode "CF14 4XW"}})))
 
   ;; find surgeries within 2k of Llandaff North, in Cardiff
-  (with-open [idx (open-index "/var/tmp/ods" "/tmp/nhspd-2021-02")]
+  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
     (doall (search-org idx {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}})))
   )
 
