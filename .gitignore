@@ -1,4 +1,3 @@
-
 .cpcache/
 .idea/
 target/
@@ -7,3 +6,4 @@ clods.iml
 .clj-kondo
 .eastwood
 .nrepl-port
+/derby.log
