@@ -81,15 +81,15 @@ In these examples, we'll use
 - /var/local/ods-2021-02   for our organisation index
 - /var/local/nhspd-2020-11 for our postcode index
 
+You can choose to use a single directory and update-in-place, or build a new
+repository at intervals. I prefer read-only, immutable backing data by default,
+so favour the latter.
+
 We also need to specify a temporary cache for downloaded data.
 
 For these examples, we'll use
 
 - /var/tmp/trud
-
-You can choose to use a single directory and update-in-place, or build a new
-repository at intervals. I prefer read-only, immutable backing data by default,
-so favour the latter. 
 
 ## 2. Initialise the postcode service
 
