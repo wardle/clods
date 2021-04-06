@@ -92,6 +92,12 @@
     (.setType (map (partial make-organization-type ods) (filter :active (:roles org))))
     (.setName (:name org))))
 
+(defn print-fhir [o]
+  (let [ctx (ca.uhn.fhir.context.FhirContext/forR4)
+        parser (doto (.newJsonParser ctx)
+                 (.setPrettyPrint true))]
+    (println (.encodeResourceToString parser o))))
+
 (comment
   (def ods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd-nov-2020"))
 
@@ -99,6 +105,8 @@
   (do (doall (map (partial make-organization ods) (clods/all-organizations ods)))
       (println "done"))
 
+  (def org (make-organization ods (clods/fetch-org ods nil "W93036")))
+  (print-fhir org)
 
   (def org (clods/fetch-org ods nil "X26"))
   (def org (clods/fetch-org ods nil "7A4"))
