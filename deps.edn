@@ -15,10 +15,14 @@
            clj-bom/clj-bom                  {:mvn/version "0.1.2"}
            clj-http/clj-http                {:mvn/version "3.12.1"}
            com.taoensso/nippy               {:mvn/version "3.1.1"}
+           com.wsscode/pathom               {:git/url "https://github.com/wilkerlucio/pathom3"
+                                             :sha     "ea60bb0031961fca5600630ce297b43dbd643225"}
            org.apache.lucene/lucene-core    {:mvn/version "8.8.1"}
            org.apache.lucene/lucene-queries {:mvn/version "8.8.1"}}
 
  :aliases {
+           :pathom-viz      {:extra-deps {com.wsscode/pathom-viz-connector {:mvn/version "2021.04.20"}}}
+
            :install         {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
                              :main-opts  ["-m" "com.eldrix.clods.install"]}
 
