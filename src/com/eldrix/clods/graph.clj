@@ -45,21 +45,55 @@
      :uk.nhs.ord.location/postcode                 (get-in org [:location :postcode])
      :uk.nhs.ord.location/country                  (get-in org [:location :country])
      :uk.nhs.ord.location/uprn                     (get-in org [:location :uprn])
-     :uk.nhs.ord.location/latlon                   (get-in org [:location :latlon])}))
+     :uk.nhs.ord.location/latlon                   (get-in org [:location :latlon])
+     :uk.nhs.ord.primaryRole/id                    (get-in org [:primaryRole :id])
+     :uk.nhs.ord.primaryRole/active                (get-in org [:primaryRole :active])
+     :uk.nhs.ord.primaryRole/startDate             (get-in org [:primaryRole :startDate])
+     :uk.nhs.ord.primaryRole/endDate               (get-in org [:primaryRole :endDate])}))
+
+
+(pco/defresolver nhspd-pcds
+  [{:keys [clods]} {:uk.gov.ons.nhspd/keys [PCDS]}]
+  {::pco/output [:uk.gov.ons.nhspd/PCDS
+                 :uk.gov.ons.nhspd/PCD2
+                 :uk.gov.ons.nhspd/LSOA01
+                 :uk.gov.ons.nhspd/LSOA11
+                 :uk.gov.ons.nhspd/PCT
+                 :uk.gov.ons.nhspd/OSNRTH1M
+                 :uk.gov.ons.nhspd/OSEAST1M]}
+  (when-let [pc (clods/fetch-postcode clods PCDS)]
+    {:uk.gov.ons.nhspd/PCDS     (get pc "PCDS")
+     :uk.gov.ons.nhspd/PCD2     (get pc "PCD2")
+     :uk.gov.ons.nhspd/LSOA01   (get pc "LSOA01")
+     :uk.gov.ons.nhspd/LSOA11   (get pc "LSOA11")
+     :uk.gov.ons.nhspd/PCT      (get pc "PCT")
+     :uk.gov.ons.nhspd/OSNRTH1M (get pc "OSNRTH1M")
+     :uk.gov.ons.nhspd/OSEAST1M (get pc "OSEAST1M")}))
+
+
+(pco/defresolver org-primary-role-type-resolver
+  [{:keys [clods]} {:uk.nhs.ord.primaryRole/keys [id]}]
+  {::pco/output [:uk.nhs.ord.primaryRole/displayName
+                 :uk.nhs.ord.primaryRole/codeSystem]}
+  (when-let [result (get (clods/code-systems clods) ["2.16.840.1.113883.2.1.3.2.4.17.507" id])]
+    {:uk.nhs.ord.primaryRole/displayName (:displayName result)
+     :uk.nhs.ord.primaryRole/codeSystem (:codeSystem result)}))
 
 (def all-resolvers
-  [uk-org])
+  [uk-org
+   (pbir/equivalence-resolver :uk.nhs.ord.location/postcode :uk.gov.ons.nhspd/PCDS)
+   nhspd-pcds
+   org-primary-role-type-resolver])
 
 (comment
   (def clods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd"))
   (clods/org-identifiers (clods/fetch-org clods nil "rwmbv"))
-
-  (clods/fetch-postcode clods "cf14 4xw")
+  (get (clods/code-systems clods) ["2.16.840.1.113883.2.1.3.2.4.17.507" "RO148"])
+  (get (clods/fetch-postcode clods "cf14 4xw") "LSOA11")
 
 
   (def registry (-> (pci/register all-resolvers)
                     (assoc :clods clods)))
   (p.connector/connect-env registry {::pvc/parser-id 'clods})
-
 
   )
