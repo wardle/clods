@@ -82,6 +82,7 @@
 (def all-resolvers
   [uk-org
    (pbir/equivalence-resolver :uk.nhs.ord.location/postcode :uk.gov.ons.nhspd/PCDS)
+   (pbir/alias-resolver :uk.gov.ons.nhspd/PCT :urn.oid.2.16.840.1.113883.2.1.3.2.4.18.48/id)
    nhspd-pcds
    org-primary-role-type-resolver])
 
