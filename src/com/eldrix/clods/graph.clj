@@ -62,6 +62,10 @@
      :uk.nhs.ord/predecessors                      (map (fn [pred] (hash-map (keyword (str "urn.oid." (get-in pred [:target :root])) "id") (get-in pred [:target :extension]))) (:predecessors org))}))
 
 
+(pco/defresolver skos-preflabel
+  [{:uk.nhs.ord/keys [name]}]
+  {:org.w3.2004.02.skos.core/prefLabel name})
+
 (pco/defresolver nhspd-pcds
   [{:keys [clods]} {:uk.gov.ons.nhspd/keys [PCDS]}]
   {::pco/output [:uk.gov.ons.nhspd/PCDS
@@ -96,7 +100,6 @@
     {:uk.nhs.ord.role/displayName (:displayName result)
      :uk.nhs.ord.role/codeSystem  (:codeSystem result)}))
 
-
 (pco/defresolver wgs36
   [{:uk.gov.ons.nhspd/keys [OSEAST1M OSNRTH1M]}]
   {::pco/output [:urn.ogc.def.crs.EPSG.4326/latitude
@@ -109,7 +112,8 @@
    nhspd-pcds
    org-primary-role-type-resolver
    org-role-type-resolver
-   wgs36])
+   wgs36
+   skos-preflabel])
 
 (comment
   (def clods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd"))
@@ -117,10 +121,13 @@
   (map (fn [succ] (hash-map (keyword (str "urn:oid:" (get-in succ [:target :root])) "id") (get-in succ [:target :extension]))) (:predecessors org))
   (get (clods/code-systems clods) ["2.16.840.1.113883.2.1.3.2.4.17.507" "RO148"])
   (get (clods/fetch-postcode clods "cf14 4xw") "LSOA11")
-
+  (clods/code-systems clods)
+  22232009
   (def registry (-> (pci/register all-resolvers)
                     (assoc :clods clods)))
   (p.connector/connect-env registry {::pvc/parser-id 'clods})
 
   (uk-org {:clods clods} {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id "RWM"})
+  :urn.ogc.def.crs.EPSG.4326/latitude
+  :urn.ogc.def.crs.EPSG.4326/longitude
   )
