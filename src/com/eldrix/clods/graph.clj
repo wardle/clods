@@ -163,7 +163,7 @@
   (require '[com.wsscode.pathom.viz.ws-connector.core :as pvc])
   (require '[com.wsscode.pathom.viz.ws-connector.pathom3 :as p.connector])
 
-  (p.connector/connect-env registry {::pvc/parser-id 'clods})
+  (p.connector/connect-env registry {:com.wsscode.pathom.viz.ws-connector.core/parser-id 'clods})
 
   (uk-org {:clods clods} {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id "RWM"})
   :urn.ogc.def.crs.EPSG.4326/latitude
