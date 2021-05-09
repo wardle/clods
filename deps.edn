@@ -16,7 +16,7 @@
            clj-http/clj-http                {:mvn/version "3.12.1"}
            com.taoensso/nippy               {:mvn/version "3.1.1"}
            com.wsscode/pathom               {:git/url "https://github.com/wilkerlucio/pathom3"
-                                             :sha     "ea60bb0031961fca5600630ce297b43dbd643225"}
+                                             :sha     "ccb9ed70ac56c87b1e28a4958089c129e8c24fa8"}
            org.apache.lucene/lucene-core    {:mvn/version "8.8.1"}
            org.apache.lucene/lucene-queries {:mvn/version "8.8.1"}}
 
