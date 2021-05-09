@@ -102,6 +102,11 @@
      :uk.gov.ons.nhspd/OSNRTH1M (get pc "OSNRTH1M")
      :uk.gov.ons.nhspd/OSEAST1M (get pc "OSEAST1M")}))
 
+(pco/defresolver nhspd-pct-org
+  [{:uk.gov.ons.nhspd/keys [PCT]}]
+  {::pco/output [{:uk.gov.ons.nhspd/PCT_ORG [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]}
+  {:uk.gov.ons.nhspd/PCT_ORG {:urn.oid.2.16.840.1.113883.2.1.3.2.4.18.48/id PCT}})
+
 (pco/defresolver org-primary-role-type-resolver
   [{::keys [svc]} {:uk.nhs.ord.primaryRole/keys [id]}]
   {::pco/output [:uk.nhs.ord.primaryRole/displayName
@@ -135,9 +140,9 @@
 (def all-resolvers
   "UK ODS resolvers; expect a key :com.eldrix.clods.graph/svc in environment."
   [uk-org
-   (pbir/alias-resolver :uk.nhs.ord.location/postcode :uk.gov.ons.nhspd/PCDS)
-   (pbir/alias-resolver :uk.gov.ons.nhspd/PCT :urn.oid.2.16.840.1.113883.2.1.3.2.4.18.48/id)
    nhspd-pcds
+   nhspd-pct-org
+   (pbir/alias-resolver :uk.nhs.ord.location/postcode :uk.gov.ons.nhspd/PCDS)
    org-primary-role-type-resolver
    org-role-type-resolver
    org-rel-type-resolver
@@ -170,12 +175,15 @@
   :urn.ogc.def.crs.EPSG.4326/longitude
 
   (p.eql/process registry
-                 [{[:uk.gov.ons.nhspd/PCDS "cf14 4xw"]
+                 [{[:uk.gov.ons.nhspd/PCDS "CF14 4XW"]
                    [:uk.gov.ons.nhspd/LSOA11
                     :uk.gov.ons.nhspd/OSNRTH1M
                     :uk.gov.ons.nhspd/OSEAST1M
+                    :urn.ogc.def.crs.EPSG.4326/longitude
+                    :urn.ogc.def.crs.EPSG.4326/latitude
                     :uk.gov.ons.nhspd/PCT
-                    :uk.nhs.ord/name
-                    :uk.nhs.ord.primaryRole/displayName
-                    {:uk.nhs.ord/predecessors [:uk.nhs.ord/name]}]}])
+                    {:uk.gov.ons.nhspd/PCT_ORG [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id
+                                                :uk.nhs.ord/name
+                                                :uk.nhs.ord.primaryRole/displayName
+                                                {:uk.nhs.ord/predecessors [:uk.nhs.ord/name]}]}]}])
   )
