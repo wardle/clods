@@ -98,6 +98,14 @@
   [{:uk.nhs.ord/keys [name]}]
   {:org.hl7.fhir.Organization/name name})
 
+(pco/defresolver fhir-uk-org->uk-ord
+  [{:uk.nhs.fhir.Id/keys [ods-organization]}]
+  {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id ods-organization})
+
+(pco/defresolver fhir-uk-org-site->uk-ord
+  [{:uk.nhs.fhir.Id/keys [ods-site]}]
+  {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id ods-site})
+
 (pco/defresolver skos-preflabel
   [{:uk.nhs.ord/keys [name]}]
   {:org.w3.2004.02.skos.core/prefLabel name})
@@ -176,6 +184,8 @@
    skos-preflabel
    uk-org->fhir-org-identifiers
    uk-org->fhir-org-name
+   fhir-uk-org->uk-ord
+   fhir-uk-org-site->uk-ord
    search])
 
 
@@ -213,6 +223,13 @@
                     :org.hl7.fhir.Organization/identifier
                     :org.hl7.fhir.Organization/name]}])
   (p.eql/process registry
+                 [{[:uk.nhs.fhir.Id/ods-organization "7A4"]
+                   [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id
+                    :uk.nhs.ord/name
+                    :uk.nhs.ord/orgId
+                    :org.hl7.fhir.Organization/identifier
+                    :org.hl7.fhir.Organization/name]}])
+  (p.eql/process registry
                  [{[:uk.gov.ons.nhspd/PCDS "CF14 4XW"]
                    [:uk.gov.ons.nhspd/LSOA11
                     :uk.gov.ons.nhspd/OSNRTH1M
@@ -228,10 +245,8 @@
 
   (p.eql/process
     registry
-    [{[:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id "7A4BV"]
-      [:org.w3.2004.02.skos.core/prefLabel
-       :uk.nhs.ord/name]}
-     {[:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id "RWM"]
-      [:org.w3.2004.02.skos.core/prefLabel
-       :uk.nhs.ord/name]}])
+    [{[:uk.nhs.fhir.Id/ods-site "7A4BV"]
+      [:org.hl7.fhir.Organization/name]}
+     {[:uk.nhs.fhir.Id/ods-site "RWM"]
+      [:org.hl7.fhir.Organization/name]}])
   )
