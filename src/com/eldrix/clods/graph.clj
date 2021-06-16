@@ -12,6 +12,48 @@
 (defn target->identifier [{:keys [root extension]}]
   (hash-map (keyword (str "urn.oid." root) "id") extension))
 
+(defn add-namespaces [org]
+  {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id (get-in org [:orgId :extension])
+   :uk.nhs.ord/name                              (:name org)
+   :uk.nhs.ord/active                            (:active org)
+   :uk.nhs.ord/orgId                             {:uk.nhs.ord/root                   (get-in org [:orgId :root])
+                                                  :uk.nhs.ord/extension              (get-in org [:orgId :extension])
+                                                  :uk.nhs.ord/assigningAuthorityName (get-in org [:orgId :assigningAuthorityName])}
+   :uk.nhs.ord.operational/start                 (get-in org [:operational :start])
+   :uk.nhs.ord.operational/end                   (get-in org [:operational :end])
+   :uk.nhs.ord/orgRecordClass                    (:orgRecordClass org)
+   :uk.nhs.ord.location/address1                 (get-in org [:location :address1])
+   :uk.nhs.ord.location/address2                 (get-in org [:location :address2])
+   :uk.nhs.ord.location/town                     (get-in org [:location :town])
+   :uk.nhs.ord.location/postcode                 (get-in org [:location :postcode])
+   :uk.nhs.ord.location/country                  (get-in org [:location :country])
+   :uk.nhs.ord.location/uprn                     (get-in org [:location :uprn])
+   :uk.nhs.ord.location/latlon                   (get-in org [:location :latlon])
+   :uk.nhs.ord.primaryRole/id                    (get-in org [:primaryRole :id])
+   :uk.nhs.ord.primaryRole/active                (get-in org [:primaryRole :active])
+   :uk.nhs.ord.primaryRole/startDate             (get-in org [:primaryRole :startDate])
+   :uk.nhs.ord.primaryRole/endDate               (get-in org [:primaryRole :endDate])
+   :uk.nhs.ord/roles                             (map (fn [role]
+                                                        {:uk.nhs.ord.role/active    (:active role)
+                                                         :uk.nhs.ord.role/id        (:id role)
+                                                         :uk.nhs.ord.role/isPrimary (:isPrimary role)
+                                                         :uk.nhs.ord.role/startDate (:startDate role)
+                                                         :uk.nhs.ord.role/endDate   (:endDate role)})
+                                                      (:roles org))
+   :uk.nhs.ord/relationships                     (map (fn [rel]
+                                                        (merge
+                                                          {:uk.nhs.ord.relationship/id        (:id rel)
+                                                           :uk.nhs.ord.relationship/startDate (:startDate rel)
+                                                           :uk.nhs.ord.relationship/endDate   (:endDate rel)
+                                                           :uk.nhs.ord.relationship/active    (:active rel)}
+                                                          (target->identifier (:target rel)))) (:relationships org))
+   :uk.nhs.ord/successors                        (->> (:successors org)
+                                                      (map :target)
+                                                      (map target->identifier))
+   :uk.nhs.ord/predecessors                      (->> (:predecessors org)
+                                                      (map :target)
+                                                      (map target->identifier))})
+
 (pco/defresolver uk-org
   "Resolve a UK organisation using the UK ODS.
   Returns data in Organisation Reference Data (ORD) standard."
@@ -38,46 +80,7 @@
                                              :uk.nhs.ord.relationship/target
                                              :urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]}
   (when-let [org (clods/fetch-org svc nil id)]
-    {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id id
-     :uk.nhs.ord/name                              (:name org)
-     :uk.nhs.ord/active                            (:active org)
-     :uk.nhs.ord/orgId                             {:uk.nhs.ord/root                   (get-in org [:orgId :root])
-                                                    :uk.nhs.ord/extension              (get-in org [:orgId :extension])
-                                                    :uk.nhs.ord/assigningAuthorityName (get-in org [:orgId :assigningAuthorityName])}
-     :uk.nhs.ord.operational/start                 (get-in org [:operational :start])
-     :uk.nhs.ord.operational/end                   (get-in org [:operational :end])
-     :uk.nhs.ord/orgRecordClass                    (:orgRecordClass org)
-     :uk.nhs.ord.location/address1                 (get-in org [:location :address1])
-     :uk.nhs.ord.location/address2                 (get-in org [:location :address2])
-     :uk.nhs.ord.location/town                     (get-in org [:location :town])
-     :uk.nhs.ord.location/postcode                 (get-in org [:location :postcode])
-     :uk.nhs.ord.location/country                  (get-in org [:location :country])
-     :uk.nhs.ord.location/uprn                     (get-in org [:location :uprn])
-     :uk.nhs.ord.location/latlon                   (get-in org [:location :latlon])
-     :uk.nhs.ord.primaryRole/id                    (get-in org [:primaryRole :id])
-     :uk.nhs.ord.primaryRole/active                (get-in org [:primaryRole :active])
-     :uk.nhs.ord.primaryRole/startDate             (get-in org [:primaryRole :startDate])
-     :uk.nhs.ord.primaryRole/endDate               (get-in org [:primaryRole :endDate])
-     :uk.nhs.ord/roles                             (map (fn [role]
-                                                          {:uk.nhs.ord.role/active    (:active role)
-                                                           :uk.nhs.ord.role/id        (:id role)
-                                                           :uk.nhs.ord.role/isPrimary (:isPrimary role)
-                                                           :uk.nhs.ord.role/startDate (:startDate role)
-                                                           :uk.nhs.ord.role/endDate   (:endDate role)})
-                                                        (:roles org))
-     :uk.nhs.ord/relationships                     (map (fn [rel]
-                                                          (merge
-                                                            {:uk.nhs.ord.relationship/id        (:id rel)
-                                                             :uk.nhs.ord.relationship/startDate (:startDate rel)
-                                                             :uk.nhs.ord.relationship/endDate   (:endDate rel)
-                                                             :uk.nhs.ord.relationship/active    (:active rel)}
-                                                            (target->identifier (:target rel)))) (:relationships org))
-     :uk.nhs.ord/successors                        (->> (:successors org)
-                                                        (map :target)
-                                                        (map target->identifier))
-     :uk.nhs.ord/predecessors                      (->> (:predecessors org)
-                                                        (map :target)
-                                                        (map target->identifier))}))
+    (add-namespaces org)))
 
 
 (def orgRecordClass->namespace {:RC1 "https://fhir.nhs.uk/Id/ods-organization"
@@ -90,9 +93,9 @@
   {:org.hl7.fhir.Organization/identifier [{:org.hl7.fhir.Identifier/system (:uk.nhs.ord/root orgId)
                                            :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)}
                                           {:org.hl7.fhir.Identifier/system (keyword (str "urn:oid." (:uk.nhs.ord/root orgId)))
-                                           :org.hl7.fhir.Identifier/value (:uk.nhs.ord/extension orgId)}
+                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)}
                                           {:org.hl7.fhir.Identifier/system (get orgRecordClass->namespace orgRecordClass)
-                                           :org.hl7.fhir.Identifier/value (:uk.nhs.ord/extension orgId)}]})
+                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)}]})
 
 (pco/defresolver uk-org->fhir-org-name
   [{:uk.nhs.ord/keys [name]}]
@@ -105,6 +108,26 @@
 (pco/defresolver fhir-uk-org-site->uk-ord
   [{:uk.nhs.fhir.Id/keys [ods-site]}]
   {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id ods-site})
+
+(pco/defresolver uk-org->fhir-address
+  [{:uk.nhs.ord.location/keys [address1 address2 town postcode country]}]
+  {::pco/output [{:org.hl7.fhir.Organization/address [:org.hl7.fhir.Address/use
+                                                      :org.hl7.fhir.Address/type
+                                                      :org.hl7.fhir.Address/text
+                                                      :org.hl7.fhir.Address/line
+                                                      :org.hl7.fhir.Address/city
+                                                      :org.hl7.fhir.Address/district
+                                                      :org.hl7.fhir.Address/state
+                                                      :org.hl7.fhir.Address/postalCode
+                                                      :org.hl7.fhir.Address/country]}]}
+  {:org.hl7.fhir.Organization/address
+   [{:org.hl7.fhir.Address/use        :org.hl7.fhir.address-use/work
+     :org.hl7.fhir.Address/type       :org.hl7.fhir.address-type/both
+     :org.hl7.fhir.Address/text       (str/join "\n" (remove str/blank? [address1 address2 town country postcode]))
+     :org.hl7.fhir.Address/line       [address1 address2]
+     :org.hl7.fhir.Address/city       town
+     :org.hl7.fhir.Address/postalCode postcode
+     :org.hl7.fhir.Address/country    country}]})
 
 (pco/defresolver skos-preflabel
   [{:uk.nhs.ord/keys [name]}]
@@ -164,12 +187,15 @@
   (com.eldrix.nhspd.coords/osgb36->wgs84 OSEAST1M OSNRTH1M))
 
 (pco/defmutation search
-  "Performs a search. Parameters:
-    |- :s                  : search string to use"
+  "Performs a search. Typical parameters:
+    |- :s                  : search string - name or address
+    |- :n                  : search in name.
+
+  A full list of parameters are listed in `com.eldrix.clods.core/search"
   [{::keys [svc]} params]
-  {::pco/op-name ':uk.nhs.ord/search
-   ::pco/params  [:s]
-   ::pco/output  []})
+  {::pco/op-name 'uk.nhs.ord/search
+   ::pco/params  [:s :n :address]}
+  (map add-namespaces (clods/search-org svc params)))
 
 (def all-resolvers
   "UK ODS resolvers; expect a key :com.eldrix.clods.graph/svc in environment."
@@ -186,6 +212,7 @@
    uk-org->fhir-org-name
    fhir-uk-org->uk-ord
    fhir-uk-org-site->uk-ord
+   uk-org->fhir-address
    search])
 
 
@@ -241,12 +268,29 @@
                                                 :uk.nhs.ord/name
                                                 :uk.nhs.ord.primaryRole/displayName
                                                 {:uk.nhs.ord/predecessors [:uk.nhs.ord/name]}]}]}])
-  (clods/search-org clods {:n "Uni Wales" :roles "RO148"})
 
   (p.eql/process
     registry
     [{[:uk.nhs.fhir.Id/ods-site "7A4BV"]
-      [:org.hl7.fhir.Organization/name]}
-     {[:uk.nhs.fhir.Id/ods-site "RWM"]
+      [:org.hl7.fhir.Organization/name
+       :uk.nhs.ord/roles]}
+     {[:uk.nhs.fhir.Id/ods-site "7A5"]
       [:org.hl7.fhir.Organization/name]}])
+
+  (map add-namespaces (clods/search-org clods {:n "Uni Wales" :roles "RO148"}))
+
+  (p.eql/process
+    registry
+    [{'(uk.nhs.ord/search
+         {:n     "castle gate"
+          :roles ["RO72"]})
+      [:org.hl7.fhir.Organization/name]}])
+  (p.eql/process
+    registry
+    [{'(uk.nhs.ord/search
+         {:n     "univ hosp wales"
+          :roles ["RO148"]})
+      [:org.hl7.fhir.Organization/name
+       :org.hl7.fhir.Organization/address
+       :uk.nhs.ord/active]}])
   )
