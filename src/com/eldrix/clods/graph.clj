@@ -91,11 +91,14 @@
   {::pco/output [{:org.hl7.fhir.Organization/identifier [:org.hl7.fhir.Identifier/system
                                                          :org.hl7.fhir.Identifier/value]}]}
   {:org.hl7.fhir.Organization/identifier [{:org.hl7.fhir.Identifier/system (:uk.nhs.ord/root orgId)
-                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)}
+                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)
+                                           :org.hl7.fhir.Identifier/use :org.hl7.fhir.identifier-use/old}
                                           {:org.hl7.fhir.Identifier/system (keyword (str "urn:oid." (:uk.nhs.ord/root orgId)))
-                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)}
+                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)
+                                           :org.hl7.fhir.Identifier/use :org.hl7.fhir.identifier-use/official}
                                           {:org.hl7.fhir.Identifier/system (get orgRecordClass->namespace orgRecordClass)
-                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)}]})
+                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)
+                                           :org.hl7.fhir.Identifier/use :org.hl7.fhir.identifier-use/usual}]})
 
 (pco/defresolver uk-org->fhir-org-name
   [{:uk.nhs.ord/keys [name]}]
@@ -291,6 +294,7 @@
          {:n     "univ hosp wales"
           :roles ["RO148"]})
       [:org.hl7.fhir.Organization/name
+       :org.hl7.fhir.Organization/identifier
        :org.hl7.fhir.Organization/address
        :uk.nhs.ord/active]}])
   )
