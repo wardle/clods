@@ -261,14 +261,14 @@
     :else
     (let [builder (BooleanQuery$Builder.)]
       (doseq [role roles]
-        (.add builder (TermQuery. (Term. "role" ^String role)) BooleanClause$Occur/MUST))
+        (.add builder (TermQuery. (Term. "role" ^String role)) BooleanClause$Occur/SHOULD))
       (.build builder))))
 
 (defn make-search-query
   "Create a search query for an organisation.
   Parameters:
   - :s             : search for name or address of organisation
-  - :n          : search for name of organisation
+  - :n             : search for name of organisation
   - :address       : search within address of organisation
   - :fuzzy         : fuzziness factor (0-2)
   - :only-active?  : only include active organisations (default, true)
@@ -315,7 +315,6 @@
         result (if (and lat lon)
                  (do-raw-query searcher query limit (sort-by-distance lat lon))
                  (do-raw-query searcher query limit))]
-    (println "Search query:" query)
     (map doc->organisation result)))
 
 (comment
@@ -374,5 +373,7 @@
   (take 1 (all-organizations reader searcher))
   (search searcher {:address "MONMOUTH" :roles "RO177"})
   (search searcher {:s "castle gate" :roles "RO177"})
+  (map :name (search searcher {:s "prince" :roles ["RO150" "RO198" "RO149" "RO108"] }))
+
   )
 
