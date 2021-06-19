@@ -104,6 +104,10 @@
   [{:uk.nhs.ord/keys [name]}]
   {:org.hl7.fhir.Organization/name name})
 
+(pco/defresolver uk-org->fhir-active
+  [{:uk.nhs.ord/keys [active]}]
+  {:org.hl7.fhir.Organization/active active})
+
 (pco/defresolver fhir-uk-org->uk-ord
   [{:uk.nhs.fhir.Id/keys [ods-organization]}]
   {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id ods-organization})
@@ -213,6 +217,7 @@
    skos-preflabel
    uk-org->fhir-org-identifiers
    uk-org->fhir-org-name
+   uk-org->fhir-active
    fhir-uk-org->uk-ord
    fhir-uk-org-site->uk-ord
    uk-org->fhir-address
@@ -291,10 +296,12 @@
   (p.eql/process
     registry
     [{'(uk.nhs.ord/search
-         {:n     "univ hosp wales"
-          :roles ["RO148"]})
+         {:s     "queen elizabeth birmingham"
+          ;:roles ["RO148"]
+          })
       [:org.hl7.fhir.Organization/name
        :org.hl7.fhir.Organization/identifier
        :org.hl7.fhir.Organization/address
-       :uk.nhs.ord/active]}])
+       :org.hl7.fhir.Organization/active
+       :uk.nhs.ord/roles]}])
   )
