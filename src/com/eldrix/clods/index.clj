@@ -190,17 +190,14 @@
 (defn- q-token
   "Creates a query on the named field using the token specified."
   [^String field-name ^String token fuzzy]
-  (let [len (count token)
-        term (Term. field-name token)
-        tq (TermQuery. term)]
-    (if (> len 2)
-      (let [builder (BooleanQuery$Builder.)]
-        (.add builder (PrefixQuery. term) BooleanClause$Occur/SHOULD)
-        (if (and fuzzy (> fuzzy 0)) (.add builder (FuzzyQuery. term (min 2 fuzzy)) BooleanClause$Occur/SHOULD)
-                                    (.add builder tq BooleanClause$Occur/SHOULD))
-        (.setMinimumNumberShouldMatch builder 1)
-        (.build builder))
-      tq)))
+  (let [term (Term. field-name token)
+        tq (TermQuery. term)
+        builder (BooleanQuery$Builder.)]
+    (.add builder (PrefixQuery. term) BooleanClause$Occur/SHOULD)
+    (if (and fuzzy (> fuzzy 0)) (.add builder (FuzzyQuery. term (min 2 fuzzy)) BooleanClause$Occur/SHOULD)
+                                (.add builder tq BooleanClause$Occur/SHOULD))
+    (.setMinimumNumberShouldMatch builder 1)
+    (.build builder)))
 
 (defn tokenize
   "Tokenize the string 's' according the 'analyzer' and field specified."
@@ -373,7 +370,7 @@
   (take 1 (all-organizations reader searcher))
   (search searcher {:address "MONMOUTH" :roles "RO177"})
   (search searcher {:s "castle gate" :roles "RO177"})
-  (map :name (search searcher {:s "prince" :roles ["RO150" "RO198" "RO149" "RO108"] }))
+  (map :name (search searcher {:s "prince" :roles ["RO150" "RO198" "RO149" "RO108"]}))
 
   )
 
