@@ -158,6 +158,16 @@
      :uk.gov.ons.nhspd/OSNRTH1M (get pc "OSNRTH1M")
      :uk.gov.ons.nhspd/OSEAST1M (get pc "OSEAST1M")}))
 
+(pco/defresolver nhspd-lsoa2011
+  [{:uk.gov.ons.nhspd/keys [LSOA11]}]
+  {::pco/output [{:uk.gov.ons.nhspd/LSOA-2011 [:uk.gov.ons/lsoa]}]}
+  {:uk.gov.ons.nhspd/LSOA-2011 {:uk.gov.ons/lsoa LSOA11}})
+
+(pco/defresolver nhspd-lsoa2001
+  [{:uk.gov.ons.nhspd/keys [LSOA01]}]
+  {::pco/output [{:uk.gov.ons.nhspd/LSOA-2001 [:uk.gov.ons/lsoa]}]}
+  {:uk.gov.ons.nhspd/LSOA-2001 {:uk.gov.ons/lsoa LSOA01}})
+
 (pco/defresolver nhspd-pct-org
   [{:uk.gov.ons.nhspd/keys [PCT]}]
   {::pco/output [{:uk.gov.ons.nhspd/PCT_ORG [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]}
@@ -210,6 +220,9 @@
    nhspd-pcds
    nhspd-pct-org
    (pbir/alias-resolver :uk.nhs.ord.location/postcode :uk.gov.ons.nhspd/PCDS)
+   nhspd-lsoa2001
+   nhspd-lsoa2011
+   (pbir/alias-resolver :uk.gov.ons.nhspd/LSOA11 :uk.gov.ons/lsoa)
    org-primary-role-type-resolver
    org-role-type-resolver
    org-rel-type-resolver
