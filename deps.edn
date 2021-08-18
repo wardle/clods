@@ -7,9 +7,9 @@
            org.clojure/tools.logging        {:mvn/version "1.1.0"}
 
            com.eldrix/nhspd                 {:git/url "https://github.com/wardle/nhspd.git"
-                                             :sha     "5b586ee2d80b8900a5160ed75725d811647c6ccd"}
+                                             :sha     "8f8807d8778cf5593f63449a78e4bbaaa1804e22"}
            com.eldrix/trud                  {:git/url "https://github.com/wardle/trud.git"
-                                             :sha     "e24261d0afcd65e07018224741e65f805d7934ca"}
+                                             :sha     "c73e7dcb4f7420b5e22e528f74c58d884bd6907e"}
 
            cli-matic/cli-matic              {:mvn/version "0.4.3"}
            clj-bom/clj-bom                  {:mvn/version "0.1.2"}
