@@ -30,8 +30,8 @@
                              :main-opts  ["-m" "com.eldrix.clods.nhspd"]}
 
            :serve           {:extra-paths ["serve"]
-                             :extra-deps  {io.pedestal/pedestal.service   {:mvn/version "0.5.8"}
-                                           io.pedestal/pedestal.jetty     {:mvn/version "0.5.8"}
+                             :extra-deps  {io.pedestal/pedestal.service   {:mvn/version "0.5.9"}
+                                           io.pedestal/pedestal.jetty     {:mvn/version "0.5.9"}
                                            ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
                              :main-opts   ["-m" "com.eldrix.clods.serve"]}
 
@@ -39,7 +39,9 @@
                              :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "5.3.0"}
                                            ca.uhn.hapi.fhir/hapi-fhir-server        {:mvn/version "5.3.0"}
                                            ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "5.3.0"}
-                                           ch.qos.logback/logback-classic           {:mvn/version "1.2.3"}}
+                                           ch.qos.logback/logback-classic           {:mvn/version "1.2.3"}
+                                           io.pedestal/pedestal.jetty               {:mvn/version "0.5.9"}
+                                           javax.servlet/javax.servlet-api          {:mvn/version "4.0.1"}}
                              :main-opts   ["-m" "com.eldrix.clods.fhir.r4.serve"]}
 
            :test            {:extra-paths ["test" "test/resources"]
