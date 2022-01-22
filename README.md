@@ -395,30 +395,42 @@ $ clj -M:lint/kondo
 $ clj -M:lint/eastwood
 ```
 
+
+# Building and deploying the library
+
+To generate a library jar:
+```shell
+clj -T:build jar
+```
+
+To install a library jar into your local maven repository:
+
+```shell
+clj -T:build install
+```
+
+To deploy the library to clojars: 
+
+```shell
+clj -T:build deploy
+```
+
 # Building executable files 
 
 If you prefer, you can generate jar files which can be run easily at the command line.
 
-Build a utility uberjar and run it. The utility uberjar helps you 
-build postcode and organisational indexes and keep them up-to-date.
-
-```shell
-$ clj -X:uberjar
-$ java -jar target/clods-full-v0.1.0.jar --help
-```
-
 Build a server uberjar and run it. This provides a simple REST API.
 ```shell
-$ clj -X:server-uberjar
-$ java -jar target/clods-rest-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+$ clj -T:build http-server
+$ java -jar target/clods-http-server-v1.0.152.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 ```
 
 Build a FHIR server uberjar and run it. This provides a FHIR R4 server.
 ```shell
-$ clj -X:fhir-r4-uberjar
-$ java -jar target/clods-fhir-r4-server-v0.1.0.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+$ clj -T:build fhir-r4-server
+$ java -jar target/clods-fhir-r4-server-1.0.152.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
 ```
 
 You can pass these standalone jar files around; they have no dependencies.
 
-Copyright © 2020-21 Eldrix Ltd and Mark Wardle
+Copyright © 2020-22 Eldrix Ltd and Mark Wardle

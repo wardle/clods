@@ -1,99 +1,85 @@
 {:paths   ["src" "resources"]
  :deps    {org.clojure/clojure              {:mvn/version "1.10.3"}
-           org.clojure/core.async           {:mvn/version "1.3.610"}
+           org.clojure/core.async           {:mvn/version "1.5.648"}
            org.clojure/data.csv             {:mvn/version "1.0.0"}
            org.clojure/data.xml             {:mvn/version "0.2.0-alpha6"}
            org.clojure/data.zip             {:mvn/version "1.0.0"}
            org.clojure/tools.logging        {:mvn/version "1.1.0"}
 
-           com.eldrix/nhspd                 {:git/url "https://github.com/wardle/nhspd.git"
-                                             :sha     "8f8807d8778cf5593f63449a78e4bbaaa1804e22"}
-           com.eldrix/trud                  {:git/url "https://github.com/wardle/trud.git"
-                                             :sha     "c73e7dcb4f7420b5e22e528f74c58d884bd6907e"}
+           com.eldrix/nhspd                 {:mvn/version "1.0.26"}
+           com.eldrix/trud                  {:mvn/version "1.0.74"}
 
            cli-matic/cli-matic              {:mvn/version "0.4.3"}
            clj-bom/clj-bom                  {:mvn/version "0.1.2"}
-           clj-http/clj-http                {:mvn/version "3.12.1"}
+           clj-http/clj-http                {:mvn/version "3.12.2"}
            com.taoensso/nippy               {:mvn/version "3.1.1"}
-           com.wsscode/pathom               {:git/url "https://github.com/wilkerlucio/pathom3"
-                                             :sha     "ccb9ed70ac56c87b1e28a4958089c129e8c24fa8"}
+           com.wsscode/pathom3              {:mvn/version "2022.01.09-alpha"}
            org.apache.lucene/lucene-core    {:mvn/version "8.8.1"}
            org.apache.lucene/lucene-queries {:mvn/version "8.8.1"}}
 
- :aliases {
-           :pathom-viz      {:extra-deps {com.wsscode/pathom-viz-connector {:mvn/version "2021.04.20"}}}
+ :aliases {:build
+           {:deps       {io.github.clojure/tools.build {:git/tag "v0.7.5" :git/sha "34727f7"}
+                         slipset/deps-deploy           {:mvn/version "RELEASE"}}
+            :ns-default build}
 
-           :install         {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
-                             :main-opts  ["-m" "com.eldrix.clods.install"]}
+           :pathom-viz
+           {:extra-deps {com.wsscode/pathom-viz-connector {:mvn/version "2021.04.20"}}}
 
-           :nhspd           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
-                             :main-opts  ["-m" "com.eldrix.clods.nhspd"]}
+           :install
+           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+            :main-opts  ["-m" "com.eldrix.clods.install"]}
 
-           :serve           {:extra-paths ["serve"]
-                             :extra-deps  {io.pedestal/pedestal.service   {:mvn/version "0.5.9"}
-                                           io.pedestal/pedestal.jetty     {:mvn/version "0.5.9"}
-                                           ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
-                             :main-opts   ["-m" "com.eldrix.clods.serve"]}
+           :nhspd
+           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+            :main-opts  ["-m" "com.eldrix.clods.nhspd"]}
 
-           :fhir-r4         {:extra-paths ["fhir_r4"]
-                             :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "5.3.0"}
-                                           ca.uhn.hapi.fhir/hapi-fhir-server        {:mvn/version "5.3.0"}
-                                           ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "5.3.0"}
-                                           ch.qos.logback/logback-classic           {:mvn/version "1.2.3"}
-                                           io.pedestal/pedestal.jetty               {:mvn/version "0.5.9"}
-                                           javax.servlet/javax.servlet-api          {:mvn/version "4.0.1"}}
-                             :main-opts   ["-m" "com.eldrix.clods.fhir.r4.serve"]}
+           :serve
+           {:extra-paths ["serve"]
+            :extra-deps  {io.pedestal/pedestal.service   {:mvn/version "0.5.9"}
+                          io.pedestal/pedestal.jetty     {:mvn/version "0.5.9"}
+                          ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+            :main-opts   ["-m" "com.eldrix.clods.serve"]}
 
-           :test            {:extra-paths ["test" "test/resources"]
-                             :extra-deps  {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
-                                                                      :sha     "b6b3193fcc42659d7e46ecd1884a228993441182"}}
-                             :main-opts   ["-m" "cognitect.test-runner"]}
+           :fhir-r4
+           {:extra-paths ["fhir_r4"]
+            :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "5.3.0"}
+                          ca.uhn.hapi.fhir/hapi-fhir-server        {:mvn/version "5.3.0"}
+                          ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "5.3.0"}
+                          ch.qos.logback/logback-classic           {:mvn/version "1.2.3"}
+                          io.pedestal/pedestal.jetty               {:mvn/version "0.5.9"}
+                          javax.servlet/javax.servlet-api          {:mvn/version "4.0.1"}}
+            :main-opts   ["-m" "com.eldrix.clods.fhir.r4.serve"]}
 
-           :log             {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}}
+           :test
+           {:extra-paths ["test" "test/resources"]
+            :extra-deps  {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                                     :sha     "cc75980b43011773162b485f46f939dc5fba91e4"}}
+            :main-opts   ["-m" "cognitect.test-runner"]}
 
-           :outdated        {:extra-deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
-                             :main-opts  ["-m" "antq.core"]}
+           :log
+           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}}
 
-           :check           {:extra-deps {athos/clj-check
-                                          {:git/url "https://github.com/athos/clj-check.git"
-                                           :sha     "518d5a1cbfcd7c952f548e6dbfcb9a4a5faf9062"}}
-                             :main-opts  ["-m" "clj-check.check" "src"]}
+           :outdated
+           {:extra-deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
+            :main-opts  ["-m" "antq.core"]}
+
+           :check
+           {:extra-deps {athos/clj-check
+                         {:git/url "https://github.com/athos/clj-check.git"
+                          :sha     "518d5a1cbfcd7c952f548e6dbfcb9a4a5faf9062"}}
+            :main-opts  ["-m" "clj-check.check" "src"]}
 
            ;; run with clj -M:serve:fhir-r4:check-all to test all codepaths
-           :check-all       {:extra-deps {athos/clj-check
-                                          {:git/url "https://github.com/athos/clj-check.git"
-                                           :sha     "518d5a1cbfcd7c952f548e6dbfcb9a4a5faf9062"}}
-                             :main-opts  ["-m" "clj-check.check" "src" "fhir_r4" "serve"]}
+           :check-all
+           {:extra-deps {athos/clj-check
+                         {:git/url "https://github.com/athos/clj-check.git"
+                          :sha     "518d5a1cbfcd7c952f548e6dbfcb9a4a5faf9062"}}
+            :main-opts  ["-m" "clj-check.check" "src" "fhir_r4" "serve"]}
 
            :lint/kondo
-                            {:extra-deps {clj-kondo/clj-kondo {:mvn/version "RELEASE"}}
-                             :main-opts  ["-m" "clj-kondo.main" "--lint" "src"]}
+           {:extra-deps {clj-kondo/clj-kondo {:mvn/version "RELEASE"}}
+            :main-opts  ["-m" "clj-kondo.main" "--lint" "src"]}
 
            :lint/eastwood
-                            {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src" "fhir_r4" "serve"]}]
-                             :extra-deps {jonase/eastwood {:mvn/version "RELEASE"}}}
-
-           :jar             {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.211"}}
-                             :exec-fn      hf.depstar/jar
-                             :exec-args    {:jar "target/clods-v0.1.0.jar"}}
-
-           ;; build a utility uberjar - just the command-line tools
-           :uberjar         {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.211"}}
-                             :exec-fn      hf.depstar/uberjar
-                             :exec-args    {:jar        "target/clods-full-v0.1.0.jar"
-                                            :aot        true
-                                            :main-class com.eldrix.clods.core}}
-
-           :server-uberjar  {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.211"}}
-                             :exec-fn      hf.depstar/uberjar
-                             :exec-args    {:jar        "target/clods-rest-server-v0.1.0.jar"
-                                            :aliases    [:serve]
-                                            :aot        true
-                                            :main-class com.eldrix.clods.serve}}
-
-           :fhir-r4-uberjar {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.0.211"}}
-                             :exec-fn      hf.depstar/uberjar
-                             :exec-args    {:jar        "target/clods-fhir-r4-server-v0.1.0.jar"
-                                            :aliases    [:fhir-r4]
-                                            :aot        true
-                                            :main-class com.eldrix.clods.fhir.r4.serve}}}}
+           {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src" "fhir_r4" "serve"]}]
+            :extra-deps {jonase/eastwood {:mvn/version "RELEASE"}}}}}
