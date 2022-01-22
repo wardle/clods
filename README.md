@@ -2,8 +2,9 @@
 
 [![Scc Count Badge](https://sloc.xyz/github/wardle/clods)](https://github.com/wardle/clods/)
 [![Scc Cocomo Badge](https://sloc.xyz/github/wardle/clods?category=cocomo&avg-wage=100000)](https://github.com/wardle/clods/)
+[![Clojars Project](https://img.shields.io/clojars/v/com.eldrix/clods.svg)](https://clojars.org/com.eldrix/clods)
 
-A web service and set of tools for UK health and care organisational data.
+A library, a web service and set of tools for UK health and care organisational data.
 
 Health and Social Care Organisation Reference Data is published by NHS Digital 
 under standard [DCB0090](https://digital.nhs.uk/data-and-information/information-standards/information-standards-and-data-collections-including-extractions/publications-and-notifications/standards-and-collections/dcb0090-health-and-social-care-organisation-reference-data).
