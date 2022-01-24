@@ -3,8 +3,7 @@
   (:require [clojure.string :as str]
             [clojure.tools.logging.readable :as log]
             [com.eldrix.clods.core :as clods]
-            [com.eldrix.clods.fhir.r4.convert :as r4convert]
-            [clojure.string :as str])
+            [com.eldrix.clods.fhir.r4.convert :as r4convert])
   (:import (ca.uhn.fhir.rest.server RestfulServer IResourceProvider)
            (ca.uhn.fhir.context FhirContext)
            (org.hl7.fhir.r4.model Organization IdType Address Identifier)
