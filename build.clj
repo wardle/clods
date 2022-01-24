@@ -35,7 +35,11 @@
                 :lib       lib
                 :version   version
                 :basis     basis
-                :src-dirs  ["src"]})
+                :src-dirs  ["src"]
+                :scm       {:url                 "https://github.com/wardle/clods"
+                            :tag                 (str "v" version)
+                            :connection          "scm:git:git://github.com/wardle/clods.git"
+                            :developerConnection "scm:git:ssh://git@github.com/wardle/clods.git"}})
   (b/copy-dir {:src-dirs   ["src"]
                :target-dir class-dir})
   (b/jar {:class-dir class-dir
