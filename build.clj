@@ -31,6 +31,7 @@
   "Create a library jar file."
   [_]
   (clean nil)
+  (println "Building   :" lib version)
   (b/write-pom {:class-dir class-dir
                 :lib       lib
                 :version   version
@@ -51,6 +52,7 @@
   [_]
   (clean nil)
   (jar nil)
+  (println "Installing   :" lib version)
   (b/install {:basis     basis
               :lib       lib
               :version   version
@@ -62,6 +64,7 @@
   Environment variables CLOJARS_USERNAME and CLOJARS_PASSWORD must be set."
   [_]
   (jar nil)
+  (println "Deploying    :" lib version)
   (dd/deploy {:installer :remote
               :artifact  jar-file
               :pom-file  (b/pom-path {:lib       lib
