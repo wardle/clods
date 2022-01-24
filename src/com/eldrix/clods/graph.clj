@@ -2,6 +2,7 @@
   "Provides a graph API across UK organisational data."
   (:require [clojure.tools.logging.readable :as log]
             [com.eldrix.clods.core :as clods]
+            [com.eldrix.nhspd.coords :as coords]
             [com.wsscode.pathom3.connect.operation :as pco]
             [com.wsscode.pathom3.connect.indexes :as pci]
             [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
@@ -201,7 +202,7 @@
   [{:uk.gov.ons.nhspd/keys [OSEAST1M OSNRTH1M]}]
   {::pco/output [:urn.ogc.def.crs.EPSG.4326/latitude
                  :urn.ogc.def.crs.EPSG.4326/longitude]}
-  (com.eldrix.nhspd.coords/osgb36->wgs84 OSEAST1M OSNRTH1M))
+  (coords/osgb36->wgs84 OSEAST1M OSNRTH1M))
 
 (pco/defmutation search
   "Performs a search. Typical parameters:
