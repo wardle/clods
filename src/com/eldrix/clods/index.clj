@@ -144,11 +144,13 @@
      (when-let [doc (.doc searcher (.-doc score-doc))]
        (doc->organisation doc)))))
 
+
 (defn all-organizations
-  "Returns a lazy sequence of all of the organisations."
-  [^IndexReader reader ^IndexSearcher searcher]
-  (->> (range 1 (.maxDoc reader))
-       (map #(.doc searcher %))
+  "Returns a lazy sequence of all of the organisations.
+   The reader must remain open until the sequence is fully realised."
+  [^IndexReader reader]
+  (->> (range (.maxDoc reader))
+       (map #(.document reader %))
        (remove nil?)
        (map doc->organisation)))
 
@@ -323,10 +325,6 @@
   (keys ods)
   (:code-systems ods)
 
-  (def writer (open-index-writer "/var/tmp/ods"))
-  (put-metadata writer "code-systems" (:code-systems ods))
-  (.close writer)
-
   ;; integrate NHS postcode directory
   (require '[com.eldrix.nhspd.core :as nhspd])
   (def nhspd (nhspd/open-index "/tmp/nhspd-2021-02"))
@@ -337,7 +335,7 @@
   (build-index nhspd (:organisations ods) "/var/tmp/ods")
 
   ;; search for an organisation
-  (def reader (open-index-reader "/var/tmp/ods"))
+  (def reader (open-index-reader "ods-2021-08"))
   (def searcher (IndexSearcher. reader))
   (read-metadata searcher "code-systems")
   (q-orgId "BE1EC")
@@ -367,7 +365,7 @@
   (let [[lat lon] (nhspd/fetch-wgs84 nhspd "np25 3mm")]
     (search searcher {:s "caslte gate" :fuzzy 2 :from-location {:lat lat :lon lon} :roles "RO72"}))
 
-  (take 1 (all-organizations reader searcher))
+  (take 1 (all-organizations reader))
   (search searcher {:address "MONMOUTH" :roles "RO177"})
   (search searcher {:s "castle gate" :roles "RO177"})
   (map :name (search searcher {:s "prince" :roles ["RO150" "RO198" "RO149" "RO108"]}))

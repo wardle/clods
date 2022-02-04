@@ -84,7 +84,7 @@
       ODS
       (fetch-org [_ root extension] (index/fetch-org searcher root extension))
       (search-org [_ params] (search searcher nhspd params))
-      (all-organizations [_] (index/all-organizations reader searcher))
+      (all-organizations [_] (index/all-organizations reader))
       (code-systems [_] code-systems)
       (fetch-postcode [_ pc] (nhspd/fetch-postcode nhspd pc))
       (fetch-wgs84 [_ pc] (nhspd/fetch-wgs84 nhspd pc))
