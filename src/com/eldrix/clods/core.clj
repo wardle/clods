@@ -208,5 +208,8 @@
   ;; find surgeries within 2k of Llandaff North, in Cardiff
   (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
     (doall (search-org idx {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}})))
+
+  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
+    (doall (search-org idx {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}})))
   )
 
