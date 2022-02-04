@@ -52,7 +52,7 @@
   [_]
   (clean nil)
   (jar nil)
-  (println "Installing   :" lib version)
+  (println "Installing :" lib version)
   (b/install {:basis     basis
               :lib       lib
               :version   version
@@ -64,7 +64,7 @@
   Environment variables CLOJARS_USERNAME and CLOJARS_PASSWORD must be set."
   [_]
   (jar nil)
-  (println "Deploying    :" lib version)
+  (println "Deploying  :" lib version)
   (dd/deploy {:installer :remote
               :artifact  jar-file
               :pom-file  (b/pom-path {:lib       lib
