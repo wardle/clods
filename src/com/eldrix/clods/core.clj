@@ -2,7 +2,8 @@
   (:require [clojure.tools.logging.readable :as log]
             [com.eldrix.clods.download :as dl]
             [com.eldrix.clods.index :as index]
-            [com.eldrix.nhspd.core :as nhspd])
+            [com.eldrix.nhspd.core :as nhspd]
+            [clojure.spec.alpha :as s])
   (:import (org.apache.lucene.search IndexSearcher)
            (java.io Closeable)
            (com.eldrix.nhspd.core NHSPD)
@@ -30,7 +31,7 @@
     (index/install-index nhspd ods dir))
   (log/info "Finished creating index at " dir))
 
-(defn merge-coords-from-postcode
+(defn ^:private merge-coords-from-postcode
   "Merge lat/lon information using value of :postcode, if supplied.
   Any existing coordinates will *not* be overwritten by coordinates derived
   from the postal code."
@@ -42,7 +43,7 @@
         loc
         (merge {:lat lat :lon lon} loc)))))
 
-(defn search
+(defn ^:private search
   "Search for an organisation
   Parameters :
   - searcher : A Lucene IndexSearcher
@@ -74,24 +75,42 @@
   (fetch-postcode [this pc] "Return NHSPD data about the specified postcode.")
   (fetch-wgs84 [this pc] "Returns WGS84 lat/long coordinates about the postcode."))
 
+
+(s/def ::ods-dir string?)
+(s/def ::nhspd #(instance? NHSPD %))
+(s/def ::nhspd-dir string?)
+(s/def ::open-index-params (s/keys :req-un [::ods-dir (or ::nhspd ::nhspd-dir)]))
+
+
 (defn open-index
-  [ods-dir nhspd-dir]
-  (let [reader (index/open-index-reader ods-dir)
-        searcher (IndexSearcher. reader)
-        nhspd (nhspd/open-index nhspd-dir)
-        code-systems (index/read-metadata searcher "code-systems")]
-    (reify
-      ODS
-      (fetch-org [_ root extension] (index/fetch-org searcher root extension))
-      (search-org [_ params] (search searcher nhspd params))
-      (all-organizations [_] (index/all-organizations reader))
-      (code-systems [_] code-systems)
-      (fetch-postcode [_ pc] (nhspd/fetch-postcode nhspd pc))
-      (fetch-wgs84 [_ pc] (nhspd/fetch-wgs84 nhspd pc))
-      Closeable
-      (close [_]
-        (.close reader)
-        (.close nhspd)))))
+  "Open a clods index.
+  Parameters are a map containing the following keys:
+   - :ods-dir   - directory representing the ODS index
+   - :nhspd     - an already opened NHSPD service
+   - :nhspd-dir - directory containing an NHSPD index
+
+  Clods depends upon the NHS Postcode Directory, as provided by <a href=\"https://github.com/wardle/nhspd\">nhspd.
+  As such, one of nhspd or nhspd-dir must be provided"
+  ^:deprecated ([ods-dir nhspd-dir] (open-index {:ods-dir ods-dir :nhspd-dir nhspd-dir}))
+  ([{:keys [ods-dir ^NHSPD nhspd nhspd-dir] :as params}]
+   (when-not (s/valid? ::open-index-params params)
+     (throw (ex-info "Cannot open index: invalid parameters" (s/explain-data ::open-index-params params))))
+   (let [reader (index/open-index-reader ods-dir)
+         searcher (IndexSearcher. reader)
+         nhspd (or nhspd (nhspd/open-index nhspd-dir))
+         code-systems (index/read-metadata searcher "code-systems")]
+     (reify
+       ODS
+       (fetch-org [_ root extension] (index/fetch-org searcher root extension))
+       (search-org [_ params] (search searcher nhspd params))
+       (all-organizations [_] (index/all-organizations reader))
+       (code-systems [_] code-systems)
+       (fetch-postcode [_ pc] (nhspd/fetch-postcode nhspd pc))
+       (fetch-wgs84 [_ pc] (nhspd/fetch-wgs84 nhspd pc))
+       Closeable
+       (close [_]
+         (.close reader)
+         (.close nhspd))))))
 
 
 (def namespace-ods-organisation "https://fhir.nhs.uk/Id/ods-organization")
