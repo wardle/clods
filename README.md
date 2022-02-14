@@ -19,6 +19,8 @@ This software provides both a library and web service. As a library, it can easi
 application. As a microservice, it can easily be embedded into a suite of foundational platform services.
 It provides both a plain REST API as well as a HL7 FHIR API (r4).
 
+You can obtain general practitioner information for a specific GP surgery using [ods-weekly](https://github.com/wardle/ods-weekly).
+
 More finely-grained location services (e.g. ward, bed) are provided by other modules
 as part of a unified [concierge location service](https://github.com/wardle/concierge).
 Ward and bed location and status data are usually provided as part of a patient administrative system rather than reference data services, but
