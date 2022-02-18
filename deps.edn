@@ -4,14 +4,14 @@
            org.clojure/data.csv                     {:mvn/version "1.0.0"}
            org.clojure/data.xml                     {:mvn/version "0.2.0-alpha6"}
            org.clojure/data.zip                     {:mvn/version "1.0.0"}
-           org.clojure/tools.logging                {:mvn/version "1.1.0"}
+           org.clojure/tools.logging                {:mvn/version "1.2.4"}
 
-           com.eldrix/nhspd                         {:mvn/version "1.0.29"}
+           com.eldrix/nhspd                         {:mvn/version "1.1.34"}
            com.eldrix/trud                          {:mvn/version "1.0.75"}
 
            cli-matic/cli-matic                      {:mvn/version "0.4.3"}
            clj-bom/clj-bom                          {:mvn/version "0.1.2"}
-           clj-http/clj-http                        {:mvn/version "3.12.2"}
+           clj-http/clj-http                        {:mvn/version "3.12.3"}
            com.taoensso/nippy                       {:mvn/version "3.1.1"}
            com.wsscode/pathom3                      {:mvn/version "2022.02.01-1-alpha"}
            org.apache.lucene/lucene-core            {:mvn/version "9.0.0"}
@@ -28,18 +28,18 @@
            {:extra-deps {com.wsscode/pathom-viz-connector {:mvn/version "2022.02.14"}}}
 
            :install
-           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.10"}}
             :main-opts  ["-m" "com.eldrix.clods.install"]}
 
            :nhspd
-           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.10"}}
             :main-opts  ["-m" "com.eldrix.clods.nhspd"]}
 
            :serve
            {:extra-paths ["serve"]
-            :extra-deps  {io.pedestal/pedestal.service   {:mvn/version "0.5.9"}
-                          io.pedestal/pedestal.jetty     {:mvn/version "0.5.9"}
-                          ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
+            :extra-deps  {io.pedestal/pedestal.service   {:mvn/version "0.5.10"}
+                          io.pedestal/pedestal.jetty     {:mvn/version "0.5.10"}
+                          ch.qos.logback/logback-classic {:mvn/version "1.2.10"}}
             :main-opts   ["-m" "com.eldrix.clods.serve"]}
 
            :fhir-r4
@@ -47,8 +47,8 @@
             :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "5.3.0"}
                           ca.uhn.hapi.fhir/hapi-fhir-server        {:mvn/version "5.3.0"}
                           ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "5.3.0"}
-                          ch.qos.logback/logback-classic           {:mvn/version "1.2.3"}
-                          io.pedestal/pedestal.jetty               {:mvn/version "0.5.9"}
+                          ch.qos.logback/logback-classic           {:mvn/version "1.2.10"}
+                          io.pedestal/pedestal.jetty               {:mvn/version "0.5.10"}
                           javax.servlet/javax.servlet-api          {:mvn/version "4.0.1"}}
             :main-opts   ["-m" "com.eldrix.clods.fhir.r4.serve"]}
 
@@ -59,7 +59,7 @@
             :main-opts   ["-m" "cognitect.test-runner"]}
 
            :log
-           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}}
+           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.10"}}}
 
            :outdated
            {:extra-deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
