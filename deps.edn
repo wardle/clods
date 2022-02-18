@@ -1,21 +1,23 @@
 {:paths   ["src" "resources"]
- :deps    {org.clojure/clojure              {:mvn/version "1.10.3"}
-           org.clojure/core.async           {:mvn/version "1.5.648"}
-           org.clojure/data.csv             {:mvn/version "1.0.0"}
-           org.clojure/data.xml             {:mvn/version "0.2.0-alpha6"}
-           org.clojure/data.zip             {:mvn/version "1.0.0"}
-           org.clojure/tools.logging        {:mvn/version "1.1.0"}
+ :deps    {org.clojure/clojure                      {:mvn/version "1.10.3"}
+           org.clojure/core.async                   {:mvn/version "1.5.648"}
+           org.clojure/data.csv                     {:mvn/version "1.0.0"}
+           org.clojure/data.xml                     {:mvn/version "0.2.0-alpha6"}
+           org.clojure/data.zip                     {:mvn/version "1.0.0"}
+           org.clojure/tools.logging                {:mvn/version "1.1.0"}
 
-           com.eldrix/nhspd                 {:mvn/version "1.0.29"}
-           com.eldrix/trud                  {:mvn/version "1.0.74"}
+           com.eldrix/nhspd                         {:mvn/version "1.0.29"}
+           com.eldrix/trud                          {:mvn/version "1.0.75"}
 
-           cli-matic/cli-matic              {:mvn/version "0.4.3"}
-           clj-bom/clj-bom                  {:mvn/version "0.1.2"}
-           clj-http/clj-http                {:mvn/version "3.12.2"}
-           com.taoensso/nippy               {:mvn/version "3.1.1"}
-           com.wsscode/pathom3              {:mvn/version "2022.01.09-alpha"}
-           org.apache.lucene/lucene-core    {:mvn/version "8.8.1"}
-           org.apache.lucene/lucene-queries {:mvn/version "8.8.1"}}
+           cli-matic/cli-matic                      {:mvn/version "0.4.3"}
+           clj-bom/clj-bom                          {:mvn/version "0.1.2"}
+           clj-http/clj-http                        {:mvn/version "3.12.2"}
+           com.taoensso/nippy                       {:mvn/version "3.1.1"}
+           com.wsscode/pathom3                      {:mvn/version "2022.02.01-1-alpha"}
+           org.apache.lucene/lucene-core            {:mvn/version "9.0.0"}
+           org.apache.lucene/lucene-queries         {:mvn/version "9.0.0"}
+           org.apache.lucene/lucene-backward-codecs {:mvn/version "9.0.0"}
+           }
 
  :aliases {:build
            {:deps       {io.github.clojure/tools.build {:git/tag "v0.7.5" :git/sha "34727f7"}
@@ -23,7 +25,7 @@
             :ns-default build}
 
            :pathom-viz
-           {:extra-deps {com.wsscode/pathom-viz-connector {:mvn/version "2021.04.20"}}}
+           {:extra-deps {com.wsscode/pathom-viz-connector {:mvn/version "2022.02.14"}}}
 
            :install
            {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}}
