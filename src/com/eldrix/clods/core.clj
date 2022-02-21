@@ -145,11 +145,12 @@
   (map #(update % :target normalize-id) v))
 
 (defn active-successors
-  "Returns the active successor(s) of the given organisation, or the given
-  organisation if it is still active"
-  [ods org]
+  "Returns the active successor(s) of the given organisation.
+  If the specified organisation is still active, by default returns a sequence
+  containing only it. If 'self-if-active?' is false, returns nil. "
+  [ods org & {:keys [self-if-active?] :or {self-if-active? true}}]
   (if (:active org)
-    [org]
+    (when self-if-active? [org])
     (flatten (->> (:successors org)
                   (map #(active-successors ods (fetch-org ods nil (get-in % [:target :extension]))))))))
 
