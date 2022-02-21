@@ -97,7 +97,7 @@
      (throw (ex-info "Cannot open index: invalid parameters" (s/explain-data ::open-index-params params))))
    (let [reader (index/open-index-reader ods-dir)
          searcher (IndexSearcher. reader)
-         managed-nhspd? (not nhspd)  ;; are we managing nhspd service?
+         managed-nhspd? (not nhspd)                         ;; are we managing nhspd service?
          nhspd (or nhspd (nhspd/open-index nhspd-dir))
          code-systems (index/read-metadata searcher "code-systems")]
      (reify
@@ -109,7 +109,7 @@
        (fetch-postcode [_ pc] (nhspd/fetch-postcode nhspd pc))
        (fetch-wgs84 [_ pc] (nhspd/fetch-wgs84 nhspd pc))
        Closeable
-       (close [_]     ;; if the nhspd service was opened by us, close it.
+       (close [_]                                           ;; if the nhspd service was opened by us, close it.
          (.close reader)
          (when managed-nhspd? (.close nhspd)))))))
 
