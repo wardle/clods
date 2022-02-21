@@ -1,9 +1,10 @@
 (ns com.eldrix.clods.core
-  (:require [clojure.tools.logging.readable :as log]
+  (:require [clojure.spec.alpha :as s]
+            [clojure.string :as str]
+            [clojure.tools.logging.readable :as log]
             [com.eldrix.clods.download :as dl]
             [com.eldrix.clods.index :as index]
-            [com.eldrix.nhspd.core :as nhspd]
-            [clojure.spec.alpha :as s])
+            [com.eldrix.nhspd.core :as nhspd])
   (:import (org.apache.lucene.search IndexSearcher)
            (java.io Closeable)
            (com.eldrix.nhspd.core NHSPD)
@@ -219,6 +220,17 @@
           (update :predecessors normalize-targets)
           (update :successors normalize-targets)))))
 
+(defn matching-org-id?
+  "Do the organisational identifiers match?
+  Parameters:
+  - source-org-id   : a map containing ':root' and ':extension' keys
+  - target-org-id   : one of:
+                      - a map containing ':root' and ':extension' keys
+                      - a string representing the extension."
+  [source-org-id target-org-id]
+  (or (and (= (:root source-org-id) (:root target-org-id) (:extension source-org-id) (:extension target-org-id)))
+      (= source-org-id target-org-id)
+      (and (string? target-org-id) (= (:extension source-org-id) (str/upper-case target-org-id)))))
 
 
 
