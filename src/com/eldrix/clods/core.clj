@@ -232,6 +232,36 @@
       (= source-org-id target-org-id)
       (and (string? target-org-id) (= (:extension source-org-id) (str/upper-case target-org-id)))))
 
+(defn related?
+  "Is the organisation specified related to the target specified?
+  The target should be the organisation, or a parent of that organisation, or
+  have a similar historical relationship.
+
+  Parameters:
+  ods           : ods index
+  org           : a map representing the organisation, from 'fetch-org'
+  target        : a map with ':root' & ':extension' keys of target organisation
+  rels          : (default, 'all') a set of relationship types, or predicate
+  successors?   : (default, true) use successor orgs to test relationship
+  predecessors? : (default true) use predecessor orgs to test relationship
+
+  For example,
+  (related? ods (fetch-org ods nil \"RWMBV\") \"7A4\"))
+  returns true, as 'RWMBV' was the old University Hospital of Wales, under a
+  parent organisation, 'RWM', which is now inactive and replaced with '7A4'."
+  [ods org target & {:keys [rels successors? predecessors?] :or {rels (constantly true) successors? true predecessors? true} :as opts}]
+  (when org
+    (or (matching-org-id? (:orgId org) target)              ;; shortcut if they are the same
+        (let [org-rels (if rels (filter #(rels (:id %)) (:relationships org)) (:relationships org))]
+          (or
+            ;; perhaps one of the relationships match directly?
+            (some #(matching-org-id? (:target %) target) org-rels)
+            ;; or recurse to their parents if there's not a direct match
+            (some #(related? ods (fetch-org ods (get-in % [:target :root]) (get-in % [:target :extension])) target) org-rels)
+            ;; look at successor organisations when possible, but don't look at predecessors to each to avoid endless loops
+            (and (not (:active org)) successors? (some #(related? ods % target (assoc opts :predecessors? false)) (active-successors ods org)))
+            ;; or look at predecessor organisations, but don't look at successors of each to avoid endless loops
+            (and predecessors? (some #(related? ods % target (assoc opts :successors? false)) (all-predecessors ods org))))))))
 
 
 (comment
