@@ -240,32 +240,35 @@
   Parameters:
   ods           : ods index
   org           : a map representing the organisation, from 'fetch-org'
-  target        : a map with ':root' & ':extension' keys of target organisation
+  target        : a map representing the organisation, from 'fetch-org'
   rels          : (default, 'all') a set of relationship types, or predicate
-  successors?   : (default, true) use successor orgs to test relationship
-  predecessors? : (default true) use predecessor orgs to test relationship
+  historic?     : (default, true) whether to use historic relationships
 
   For example,
-  (related? ods (fetch-org ods nil \"RWMBV\") \"7A4\"))
+  (related? ods (fetch-org ods nil \"RWMBV\") (fetch-org ods nil \"7A4\"))
   returns true, as 'RWMBV' was the old University Hospital of Wales, under a
   parent organisation, 'RWM', which is now inactive and replaced with '7A4'."
-  [ods org target & {:keys [rels successors? predecessors?] :or {rels (constantly true) successors? true predecessors? true} :as opts}]
+  [ods org target & {:keys [rels historic?] :or {historic? true} :as opts}]
   (when org
-    (or (matching-org-id? (:orgId org) target)              ;; shortcut if they are the same
+    (or (matching-org-id? (:orgId org) (:orgId target))              ;; shortcut if they are the same
         (let [org-rels (if rels (filter #(rels (:id %)) (:relationships org)) (:relationships org))]
           (or
             ;; perhaps one of the relationships match directly?
             (some #(matching-org-id? (:target %) target) org-rels)
-            ;; or recurse to their parents if there's not a direct match
+            ;; or recurse through source organisation relationships if there's not a direct match
             (some #(related? ods (fetch-org ods (get-in % [:target :root]) (get-in % [:target :extension])) target) org-rels)
-            ;; look at successor organisations when possible, but don't look at predecessors to each to avoid endless loops
-            (and (not (:active org)) successors? (some #(related? ods % target (assoc opts :predecessors? false)) (active-successors ods org)))
-            ;; or look at predecessor organisations, but don't look at successors of each to avoid endless loops
-            (and predecessors? (some #(related? ods % target (assoc opts :successors? false)) (all-predecessors ods org))))))))
-
+            ;; do a comparison of active successors, if we're using historic relationships and either org is inactive...
+            (and historic? (or (not (:active org)) (not (:active target)))
+                 (let [org-succs (active-successors ods org)
+                       target-succs (active-successors ods target)
+                       test-seq (for [s org-succs t target-succs] [s t])]
+                   (some (fn [[s t]] (related? ods s t :rels rels :historic? false)) test-seq))))))))
 
 (comment
-
+  (def ods (open-index "ods-2022-01-24.db" "../nhspd/nhspd-2022-02-01.db"))
+  (active-successors ods (fetch-org ods nil "RWM"))
+  (related? ods (fetch-org ods nil "RWMBV") (fetch-org ods nil "RWM"))
+  (fetch-org ods nil "RWM")
   (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
     (fetch-org idx nil "RWMBV"))
 
