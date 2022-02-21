@@ -20,7 +20,7 @@
            }
 
  :aliases {:build
-           {:deps       {io.github.clojure/tools.build {:git/tag "v0.7.5" :git/sha "34727f7"}
+           {:deps       {io.github.clojure/tools.build {:git/tag "v0.7.7" :git/sha "1474ad6"}
                          slipset/deps-deploy           {:mvn/version "RELEASE"}}
             :ns-default build}
 
