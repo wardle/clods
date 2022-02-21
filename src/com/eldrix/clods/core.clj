@@ -154,18 +154,25 @@
     (flatten (->> (:successors org)
                   (map #(active-successors ods (fetch-org ods nil (get-in % [:target :extension]))))))))
 
+(defn predecessors [ods org]
+  "Returns a lazy sequence of direct predecessor organisations."
+  (->> (:predecessors org)
+       (map #(fetch-org ods (get-in % [:target :root]) (get-in % [:target :extension])))))
+
 (defn all-predecessors
-  "Returns the names of all of the predecessor names of the specified
-  organisation"
-  ([ods org]
-   (concat
-     (->> (:predecessors org)
-          (map :target)
-          (map :extension)
-          (map #(fetch-org ods nil %))
-          (map #(assoc (normalize-id (:orgId %)) :name (:name %))))
-     (flatten (->> (:predecessors org)
-                   (map #(all-predecessors (partial fetch-org ods nil) (get-in % [:target :extension]))))))))
+  "Returns a vector of all predecessor organisations."
+  [ods org]
+  (loop [remaining-orgs (vec (predecessors ods org))
+         result []]
+    (if-not (seq remaining-orgs)
+      result
+      (let [org' (first remaining-orgs)
+            remaining (or (next remaining-orgs) [])]
+        (recur (into remaining (predecessors ods org'))
+               (conj result org'))))))
+
+(comment
+  (all-predecessors idx (fetch-org idx nil "7A4BV")))
 
 (defn org-identifiers
   "Returns a normalised list of organisation identifiers.
