@@ -140,9 +140,10 @@
    - extension : organisation code; eg. '7A4BV'."
   ([^IndexSearcher searcher extension] (fetch-org searcher hl7-oid-health-and-social-care-organisation-identifier extension))
   ([^IndexSearcher searcher root extension]
-   (when-let [score-doc ^ScoreDoc (first (seq (.-scoreDocs ^TopDocs (.search searcher (q-orgId root extension) 1))))]
-     (when-let [doc (.doc searcher (.-doc score-doc))]
-       (doc->organisation doc)))))
+   (when-not (str/blank? extension)
+     (when-let [score-doc ^ScoreDoc (first (seq (.-scoreDocs ^TopDocs (.search searcher (q-orgId root extension) 1))))]
+       (when-let [doc (.doc searcher (.-doc score-doc))]
+         (doc->organisation doc))))))
 
 
 (defn all-organizations
