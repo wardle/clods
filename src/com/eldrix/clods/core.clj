@@ -189,8 +189,8 @@
   {"RE2" 1                                                  ;; is a subdivision
    "RE3" 2                                                  ;; is directed by
    "RE6" 3                                                  ;; is operated by
-   "RE4" 4                                                  ;; is commissioned by
-   })
+   "RE4" 4})                                                ;; is commissioned by
+
 
 (defn org-part-of
   "Returns a best-match of what we consider an organisation 'part-of'.
@@ -238,19 +238,19 @@
   have a similar historical relationship.
 
   Parameters:
-  ods           : ods index
-  org           : a map representing the organisation, from 'fetch-org'
-  target        : a map representing the organisation, from 'fetch-org'
-  rels          : (default, 'all') a set of relationship types, or predicate
-  historic?     : (default, true) whether to use historic relationships
+  - ods           : ods index
+  - org           : a map representing the organisation, from 'fetch-org'
+  - target        : a map representing the organisation, from 'fetch-org'
+  - rels          : (default, 'all') a set of relationship types, or predicate
+  - historic?     : (default, true) whether to use historic relationships
 
   For example,
-  (related? ods (fetch-org ods nil \"RWMBV\") (fetch-org ods nil \"7A4\"))
+  `(related? ods (fetch-org ods nil \"RWMBV\") (fetch-org ods nil \"7A4\"))`
   returns true, as 'RWMBV' was the old University Hospital of Wales, under a
   parent organisation, 'RWM', which is now inactive and replaced with '7A4'."
   [ods org target & {:keys [rels historic?] :or {historic? true} :as opts}]
   (when org
-    (or (matching-org-id? (:orgId org) (:orgId target))              ;; shortcut if they are the same
+    (or (matching-org-id? (:orgId org) (:orgId target))     ;; shortcut if they are the same
         (let [org-rels (if rels (filter #(rels (:id %)) (:relationships org)) (:relationships org))]
           (or
             ;; perhaps one of the relationships match directly?
