@@ -155,8 +155,9 @@
     (flatten (->> (:successors org)
                   (map #(active-successors ods (fetch-org ods nil (get-in % [:target :extension]))))))))
 
-(defn predecessors [ods org]
+(defn predecessors
   "Returns a lazy sequence of direct predecessor organisations."
+  [ods org]
   (->> (:predecessors org)
        (map #(fetch-org ods (get-in % [:target :root]) (get-in % [:target :extension])))))
 
