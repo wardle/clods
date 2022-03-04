@@ -229,7 +229,7 @@
                       - a map containing ':root' and ':extension' keys
                       - a string representing the extension."
   [source-org-id target-org-id]
-  (or (and (= (:root source-org-id) (:root target-org-id) (:extension source-org-id) (:extension target-org-id)))
+  (or (and (= (:root source-org-id) (:root target-org-id)) (:extension source-org-id) (:extension target-org-id))
       (= source-org-id target-org-id)
       (and (string? target-org-id) (= (:extension source-org-id) (str/upper-case target-org-id)))))
 
