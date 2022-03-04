@@ -77,12 +77,18 @@
   (fetch-wgs84 [this pc] "Returns WGS84 lat/long coordinates about the postcode."))
 
 
+(s/def ::root string?)
+(s/def ::extension string?)
+(s/def ::orgId (s/keys :req-un [::root ::extension]))
+(s/def ::ods #(satisfies? ODS %))
 (s/def ::ods-dir string?)
 (s/def ::nhspd #(instance? NHSPD %))
 (s/def ::nhspd-dir string?)
 (s/def ::open-index-params (s/keys :req-un [::ods-dir (or ::nhspd ::nhspd-dir)]))
 
-
+(s/fdef open-index
+  :args (s/alt :vec (s/cat :ods-dir string? :nhspd-dir string?)
+               :map (s/keys :req-un [::ods-dir (or ::nhspd ::nhspd-dir)])))
 (defn open-index
   "Open a clods index.
   Parameters are a map containing the following keys:
@@ -221,6 +227,10 @@
           (update :predecessors normalize-targets)
           (update :successors normalize-targets)))))
 
+(s/fdef matching-org-id?
+  :args (s/cat :source ::orgId
+               :target (s/alt :target-org-id ::orgId
+                              :target-extension string?)))
 (defn matching-org-id?
   "Do the organisational identifiers match?
   Parameters:
@@ -229,7 +239,7 @@
                       - a map containing ':root' and ':extension' keys
                       - a string representing the extension."
   [source-org-id target-org-id]
-  (or (and (= (:root source-org-id) (:root target-org-id)) (:extension source-org-id) (:extension target-org-id))
+  (or (and (= (:root source-org-id) (:root target-org-id)) (= (:extension source-org-id) (:extension target-org-id)))
       (= source-org-id target-org-id)
       (and (string? target-org-id) (= (:extension source-org-id) (str/upper-case target-org-id)))))
 
@@ -246,16 +256,19 @@
   - historic?     : (default, true) whether to use historic relationships
 
   For example,
-  `(related? ods (fetch-org ods nil \"RWMBV\") (fetch-org ods nil \"7A4\"))`
-  returns true, as 'RWMBV' was the old University Hospital of Wales, under a
-  parent organisation, 'RWM', which is now inactive and replaced with '7A4'."
+  ```
+    (related? ods (fetch-org ods nil \"RWMBV\") (fetch-org ods nil \"7A4\"))
+  ```
+  returns a truthy value, as 'RWMBV' was the old University Hospital of Wales,
+  under a parent organisation, 'RWM', which is now inactive and replaced with
+  '7A4'."
   [ods org target & {:keys [rels historic?] :or {historic? true} :as opts}]
   (when org
     (or (matching-org-id? (:orgId org) (:orgId target))     ;; shortcut if they are the same
         (let [org-rels (if rels (filter #(rels (:id %)) (:relationships org)) (:relationships org))]
           (or
             ;; perhaps one of the relationships match directly?
-            (some #(matching-org-id? (:target %) target) org-rels)
+            (some #(matching-org-id? (:target %) (:orgId target)) org-rels)
             ;; or recurse through source organisation relationships if there's not a direct match
             (some #(related? ods (fetch-org ods (get-in % [:target :root]) (get-in % [:target :extension])) target) org-rels)
             ;; do a comparison of active successors, if we're using historic relationships and either org is inactive...
@@ -266,9 +279,13 @@
                    (some (fn [[s t]] (related? ods s t :rels rels :historic? false)) test-seq))))))))
 
 (comment
-  (def ods (open-index "ods-2022-01-24.db" "../nhspd/nhspd-2022-02-01.db"))
+  (require '[clojure.spec.test.alpha :as stest])
+  (stest/instrument)
+  (def ods (open-index {:ods-dir "ods-2022-01-24.db" :nhspd-dir "../nhspd/nhspd-2022-02-01.db"}))
   (active-successors ods (fetch-org ods nil "RWM"))
-  (related? ods (fetch-org ods nil "RWMBV") (fetch-org ods nil "RWM"))
+
+  (related? ods (fetch-org ods nil "RVFAR") (fetch-org ods nil "7A4"))
+  (related? ods (fetch-org ods nil "RWMBV") (fetch-org ods nil "7A4"))
   (fetch-org ods nil "RWM")
   (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
     (fetch-org idx nil "RWMBV"))
@@ -284,6 +301,6 @@
     (doall (search-org idx {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}})))
 
   (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
-    (doall (search-org idx {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}})))
-  )
+    (doall (search-org idx {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}}))))
+
 
