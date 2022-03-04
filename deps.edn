@@ -13,14 +13,14 @@
            clj-bom/clj-bom                          {:mvn/version "0.1.2"}
            clj-http/clj-http                        {:mvn/version "3.12.3"}
            com.taoensso/nippy                       {:mvn/version "3.1.1"}
-           com.wsscode/pathom3                      {:mvn/version "2022.02.01-1-alpha"}
+           com.wsscode/pathom3                      {:mvn/version "2022.02.25-alpha"}
            org.apache.lucene/lucene-core            {:mvn/version "9.0.0"}
            org.apache.lucene/lucene-queries         {:mvn/version "9.0.0"}
-           org.apache.lucene/lucene-backward-codecs {:mvn/version "9.0.0"}
-           }
+           org.apache.lucene/lucene-backward-codecs {:mvn/version "9.0.0"}}
+
 
  :aliases {:build
-           {:deps       {io.github.clojure/tools.build {:git/tag "v0.7.7" :git/sha "1474ad6"}
+           {:deps       {io.github.clojure/tools.build {:git/tag "v0.8.0" :git/sha "e3e3532"}
                          slipset/deps-deploy           {:mvn/version "RELEASE"}}
             :ns-default build}
 
