@@ -136,6 +136,16 @@
   [ods rel-code]
   (get (code-systems ods) ["2.16.840.1.113883.2.1.3.2.4.17.508" rel-code]))
 
+(def re-org-id #"^((?<root>.*?)\|)?(?<extension>.*?)$")
+
+(s/fdef parse-org-id
+  :args (s/cat :s string?))
+(defn parse-org-id [s]
+  (when-not (str/blank? s)
+    (let [[_ _ root extension] (re-matches re-org-id s)]
+      {:root      root
+       :extension extension})))
+
 (defn normalize-id
   "Normalizes an ODS identifier oid/extension to a URI/value with the URI
   prefix of 'urn:uri:'"
