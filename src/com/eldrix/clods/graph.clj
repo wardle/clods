@@ -63,7 +63,7 @@
                  :uk.nhs.ord/name :uk.nhs.ord/active
                  {:uk.nhs.ord/orgId [:uk.nhs.ord/root
                                      :uk.nhs.ord/extension
-                                     :uk.nhs.ord./assigningAuthorityName]}
+                                     :uk.nhs.ord/assigningAuthorityName]}
                  :uk.nhs.ord.operational/start
                  :uk.nhs.ord.operational/end
                  {:uk.nhs.ord/roles [:uk.nhs.ord.role/id :uk.nhs.ord.role/isPrimary :uk.nhs.ord.role/active :uk.nhs.ord.role/startDate :uk.nhs.ord.role/endDate]}
@@ -310,12 +310,11 @@
   (p.eql/process
     registry
     [{'(uk.nhs.ord/search
-         {:s     "queen elizabeth birmingham"
+         {:s     "queen elizabeth birmingham"})
           ;:roles ["RO148"]
-          })
+
       [:org.hl7.fhir.Organization/name
        :org.hl7.fhir.Organization/identifier
        :org.hl7.fhir.Organization/address
        :org.hl7.fhir.Organization/active
-       :uk.nhs.ord/roles]}])
-  )
+       :uk.nhs.ord/roles]}]))
