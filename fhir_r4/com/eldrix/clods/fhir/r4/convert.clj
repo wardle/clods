@@ -32,8 +32,8 @@
    "RO116" "govt"                                           ;; government agency
    "RO131" "govt"                                           ;; government department site
    "RO141" "govt"                                           ;; local authority
-   "RO175" "other"                                          ;; prison
-   })
+   "RO175" "other"})                                          ;; prison
+
 
 (defn make-coding [{:keys [codeSystem id displayName]}]
   (doto (Coding.)
@@ -124,5 +124,4 @@
   (clods/get-relationship ods "RE11")
   (clods/code-systems ods)
   (clods/org-part-of org)
-  (clods/search-org ods {:s "Castle Gate "})
-  )
+  (clods/search-org ods {:s "Castle Gate "}))

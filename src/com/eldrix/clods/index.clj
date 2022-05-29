@@ -369,7 +369,7 @@
   (take 1 (all-organizations reader))
   (search searcher {:address "MONMOUTH" :roles "RO177"})
   (search searcher {:s "castle gate" :roles "RO177"})
-  (map :name (search searcher {:s "prince" :roles ["RO150" "RO198" "RO149" "RO108"]}))
+  (map :name (search searcher {:s "prince" :roles ["RO150" "RO198" "RO149" "RO108"]})))
 
-  )
+
 

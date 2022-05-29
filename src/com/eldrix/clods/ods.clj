@@ -213,9 +213,9 @@
   (def code-systems (first (filter #(= :CodeSystems (:tag %)) (:content data))))
   (def root (zip/xml-zip code-systems))
   (xml-> root :CodeSystems :CodeSystem :concept (attr :id)) ;; list of identifiers
-  (xml-> root :CodeSystems :CodeSystem parse-code-system)
+  (xml-> root :CodeSystems :CodeSystem parse-code-system))
 
-  )
+
 
 
 

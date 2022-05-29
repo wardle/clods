@@ -93,5 +93,4 @@
   (count (:code-systems ods))
   (first (:code-systems ods))
   (a/<!! (:organisations ods))
-  (a/thread (ziputils/delete-paths (:paths ods)))
-  )
+  (a/thread (ziputils/delete-paths (:paths ods))))
