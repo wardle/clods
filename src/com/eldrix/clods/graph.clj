@@ -11,7 +11,7 @@
             [clojure.string :as str]))
 
 (defn target->identifier [{:keys [root extension]}]
-  (hash-map (keyword (str "urn.oid." root) "id") extension))
+  (hash-map (keyword (str "urn:oid:" root) "id") extension))
 
 (defn add-namespaces [org]
   {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id
