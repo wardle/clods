@@ -84,6 +84,16 @@
   (when-let [org (clods/fetch-org svc nil id)]
     (add-namespaces org)))
 
+(pco/defresolver uk-org->is-operated-by
+  [{rels :uk.nhs.ord/relationships}]
+  {::pco/input [{:uk.nhs.ord/relationships [:uk.nhs.ord.relationship/active
+                                            :uk.nhs.ord.relationship/id
+                                            :urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]
+   ::pco/output [{:uk.nhs.ord/isOperatedBy [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]}
+  {:uk.nhs.ord/isOperatedBy (->> rels
+                                 (filter #(= "RE6" (:uk.nhs.ord.relationship/id %)))
+                                 (filter #(= true (:uk.nhs.ord.relationship/active %)))
+                                 vec)})
 
 (def orgRecordClass->namespace {:RC1 "https://fhir.nhs.uk/Id/ods-organization"
                                 :RC2 "https://fhir.nhs.uk/Id/ods-site"})
@@ -219,6 +229,7 @@
 (def all-resolvers
   "UK ODS resolvers; expect a key :com.eldrix.clods.graph/svc in environment."
   [uk-org
+   uk-org->is-operated-by
    nhspd-pcds
    nhspd-pct-org
    (pbir/alias-resolver :uk.nhs.ord.location/postcode :uk.gov.ons.nhspd/PCDS)
@@ -267,11 +278,13 @@
   :urn.ogc.def.crs.EPSG.4326/longitude
 
   (p.eql/process registry
-                 [{[:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id "7A4"]
+                 [{[:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id "7A4BV"]
                    [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id
                     :uk.nhs.ord/name
                     :uk.nhs.ord/orgId
                     { :uk.nhs.ord/location [:uk.nhs.ord.location/postcode]}
+                    :uk.nhs.ord/relationships
+                    {:uk.nhs.ord/isOperatedBy [:uk.nhs.ord/name]}
                     #_:org.hl7.fhir.Organization/identifier
                     #_:org.hl7.fhir.Organization/name]}])
   (p.eql/process registry
