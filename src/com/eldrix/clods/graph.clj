@@ -86,14 +86,28 @@
 
 (pco/defresolver uk-org->is-operated-by
   [{rels :uk.nhs.ord/relationships}]
-  {::pco/input [{:uk.nhs.ord/relationships [:uk.nhs.ord.relationship/active
-                                            :uk.nhs.ord.relationship/id
-                                            :urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]
+  {::pco/input  [{:uk.nhs.ord/relationships [:uk.nhs.ord.relationship/active
+                                             :uk.nhs.ord.relationship/id
+                                             :urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]
    ::pco/output [{:uk.nhs.ord/isOperatedBy [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]}
   {:uk.nhs.ord/isOperatedBy (->> rels
                                  (filter #(= "RE6" (:uk.nhs.ord.relationship/id %)))
                                  (filter #(= true (:uk.nhs.ord.relationship/active %)))
                                  vec)})
+
+(pco/defresolver uk-org->is-part-of
+  [{rels :uk.nhs.ord/relationships}]
+  {::pco/input [{:uk.nhs.ord/relationships [:uk.nhs.ord.relationship/id
+                                            :uk.nhs.ord.relationship/active
+                                            :urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]
+   ::pco/output [{:uk.nhs.ord/isPartOf [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]}
+  (when-let [rel (->> rels
+                      (map #(assoc % :priority (get clods/part-of-relationships (:uk.nhs.ord.relationship/id %))))
+                      (filter :uk.nhs.ord.relationship/active)
+                      (filter :priority)
+                      (sort-by :priority)
+                      first)]
+    {:uk.nhs.ord/isPartOf (dissoc rel :priority)}))
 
 (def orgRecordClass->namespace {:RC1 "https://fhir.nhs.uk/Id/ods-organization"
                                 :RC2 "https://fhir.nhs.uk/Id/ods-site"})
@@ -230,6 +244,7 @@
   "UK ODS resolvers; expect a key :com.eldrix.clods.graph/svc in environment."
   [uk-org
    uk-org->is-operated-by
+   uk-org->is-part-of
    nhspd-pcds
    nhspd-pct-org
    (pbir/alias-resolver :uk.nhs.ord.location/postcode :uk.gov.ons.nhspd/PCDS)
@@ -282,9 +297,10 @@
                    [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id
                     :uk.nhs.ord/name
                     :uk.nhs.ord/orgId
-                    { :uk.nhs.ord/location [:uk.nhs.ord.location/postcode]}
+                    {:uk.nhs.ord/location [:uk.nhs.ord.location/postcode]}
                     :uk.nhs.ord/relationships
                     {:uk.nhs.ord/isOperatedBy [:uk.nhs.ord/name]}
+                    { :uk.nhs.ord/isPartOf [:uk.nhs.ord/name]}
                     #_:org.hl7.fhir.Organization/identifier
                     #_:org.hl7.fhir.Organization/name]}])
   (p.eql/process registry
