@@ -118,7 +118,7 @@
   ([^String extension] (q-orgId nil extension))
   ([^String root ^String extension]
    (-> (BooleanQuery$Builder.)
-       (.add (TermQuery. (Term. "root" (or root hl7-oid-health-and-social-care-organisation-identifier))) BooleanClause$Occur/MUST)
+       (.add (TermQuery. (Term. "root" ^String (or root hl7-oid-health-and-social-care-organisation-identifier))) BooleanClause$Occur/MUST)
        (.add (TermQuery. (Term. "extension" (str/upper-case extension))) BooleanClause$Occur/MUST)
        (.build))))
 
