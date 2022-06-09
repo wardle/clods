@@ -8,7 +8,7 @@
   (:import (org.apache.lucene.index Term IndexWriter IndexWriterConfig DirectoryReader IndexWriterConfig$OpenMode IndexReader)
            (org.apache.lucene.store FSDirectory)
            (org.apache.lucene.document Document Field$Store StoredField TextField StringField LatLonPoint LatLonDocValuesField)
-           (org.apache.lucene.search IndexSearcher TermQuery TopDocs ScoreDoc BooleanQuery$Builder BooleanClause$Occur Query PrefixQuery FuzzyQuery Sort)
+           (org.apache.lucene.search IndexSearcher TermQuery TopDocs ScoreDoc BooleanQuery$Builder BooleanClause$Occur Query PrefixQuery FuzzyQuery Sort SortField)
            (org.apache.lucene.analysis.standard StandardAnalyzer)
            (java.nio.file Paths)
            (org.apache.lucene.analysis.tokenattributes CharTermAttribute)
@@ -236,7 +236,7 @@
   "Creates an Apache Lucene 'Sort' based on distance from the location given."
   ([[lat lon]] (sort-by-distance lat lon))
   ([lat lon]
-   (Sort. (LatLonDocValuesField/newDistanceSort "latlon" lat lon))))
+   (Sort. (into-array ^SortField [(LatLonDocValuesField/newDistanceSort "latlon" lat lon)]))))
 
 (defn q-location
   "Creates a query for an organisation within 'distance' metres of the
