@@ -1,7 +1,6 @@
 (ns com.eldrix.clods.download
   (:require [com.eldrix.clods.ods :as ods]
             [com.eldrix.trud.core :as trud]
-            [com.eldrix.trud.zip :as ziputils]
             [clojure.tools.logging.readable :as log]
             [clojure.core.async :as a])
   (:import (java.time LocalDate)))
@@ -24,9 +23,9 @@
      (if-not (:needsUpdate? latest)
        (log/info "skipping download ODS XML distribution files: already up-to-date.")
        (do (log/info "processing ODS XML distribution files." (select-keys latest [:itemIdentifier :releaseDate :archiveFilePath]))
-           (let [all-files (ziputils/unzip2 [(:archiveFilePath latest)
-                                             ["archive.zip" #"\w+.xml"]
-                                             ["fullfile.zip" #"\w+.xml"]])]
+           (let [all-files (trud/unzip-query [(:archiveFilePath latest)
+                                              ["archive.zip" #"\w+.xml"]
+                                              ["fullfile.zip" #"\w+.xml"]])]
              {:release   latest
               :paths     all-files
               :xml-files (concat (get-in all-files [1 1])

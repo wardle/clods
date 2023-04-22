@@ -1,25 +1,25 @@
 {:paths   ["src" "resources"]
  :deps    {org.clojure/clojure                      {:mvn/version "1.11.1"}
-           org.clojure/core.async                   {:mvn/version "1.5.648"}
+           org.clojure/core.async                   {:mvn/version "1.6.673"}
            org.clojure/data.csv                     {:mvn/version "1.0.1"}
-           org.clojure/data.xml                     {:mvn/version "0.2.0-alpha6"}
+           org.clojure/data.xml                     {:mvn/version "0.2.0-alpha8"}
            org.clojure/data.zip                     {:mvn/version "1.0.0"}
            org.clojure/tools.logging                {:mvn/version "1.2.4"}
 
-           com.eldrix/nhspd                         {:mvn/version "1.1.40"}
-           com.eldrix/trud                          {:mvn/version "1.0.80"}
+           com.eldrix/nhspd                         {:mvn/version "1.1.48"}
+           com.eldrix/trud                          {:mvn/version "1.0.103"}
 
-           cli-matic/cli-matic                      {:mvn/version "0.5.3"}
+           cli-matic/cli-matic                      {:mvn/version "0.5.4"}
            clj-bom/clj-bom                          {:mvn/version "0.1.2"}
-           com.taoensso/nippy                       {:mvn/version "3.1.1"}
-           com.wsscode/pathom3                      {:mvn/version "2022.05.19-alpha"}
-           org.apache.lucene/lucene-core            {:mvn/version "9.2.0"}
-           org.apache.lucene/lucene-queries         {:mvn/version "9.2.0"}
-           org.apache.lucene/lucene-backward-codecs {:mvn/version "9.2.0"}}
+           com.taoensso/nippy                       {:mvn/version "3.2.0"}
+           com.wsscode/pathom3                      {:mvn/version "2023.01.31-alpha"}
+           org.apache.lucene/lucene-core            {:mvn/version "9.5.0"}
+           org.apache.lucene/lucene-queries         {:mvn/version "9.5.0"}
+           org.apache.lucene/lucene-backward-codecs {:mvn/version "9.5.0"}}
 
 
  :aliases {:build
-           {:deps       {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}
+           {:deps       {io.github.clojure/tools.build {:git/tag "v0.9.4" :git/sha "76b78fe"}
                          slipset/deps-deploy           {:mvn/version "RELEASE"}}
             :ns-default build}
 
@@ -27,26 +27,26 @@
            {:extra-deps {com.wsscode/pathom-viz-connector {:mvn/version "2022.02.14"}}}
 
            :install
-           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
+           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.4.7"}}
             :main-opts  ["-m" "com.eldrix.clods.install"]}
 
            :nhspd
-           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
+           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.4.7"}}
             :main-opts  ["-m" "com.eldrix.clods.nhspd"]}
 
            :serve
            {:extra-paths ["serve"]
             :extra-deps  {io.pedestal/pedestal.service   {:mvn/version "0.5.10"}
                           io.pedestal/pedestal.jetty     {:mvn/version "0.5.10"}
-                          ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}
+                          ch.qos.logback/logback-classic {:mvn/version "1.4.7"}}
             :main-opts   ["-m" "com.eldrix.clods.serve"]}
 
            :fhir-r4
            {:extra-paths ["fhir_r4"]
-            :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "5.3.0"}
-                          ca.uhn.hapi.fhir/hapi-fhir-server        {:mvn/version "5.3.0"}
-                          ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "5.3.0"}
-                          ch.qos.logback/logback-classic           {:mvn/version "1.2.11"}
+            :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "6.4.4"}
+                          ca.uhn.hapi.fhir/hapi-fhir-server        {:mvn/version "6.4.4"}
+                          ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "6.4.4"}
+                          ch.qos.logback/logback-classic           {:mvn/version "1.4.7"}
                           io.pedestal/pedestal.jetty               {:mvn/version "0.5.10"}
                           javax.servlet/javax.servlet-api          {:mvn/version "4.0.1"}}
             :main-opts   ["-m" "com.eldrix.clods.fhir.r4.serve"]}
@@ -54,11 +54,11 @@
            :test
            {:extra-paths ["test" "test/resources"]
             :extra-deps  {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
-                                                     :sha     "a85b3b02765fb68684ab9ee4a8598eacf7e471d2"}}
+                                                     :sha     "7284cda41fb9edc0f3bc6b6185cfb7138fc8a023"}}
             :main-opts   ["-m" "cognitect.test-runner"]}
 
            :log
-           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.11"}}}
+           {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.4.7"}}}
 
            :outdated
            {:extra-deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
