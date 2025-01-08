@@ -115,5 +115,5 @@
   (def ods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd-nov-2020"))
   (def server (make-server ods {:port 8080}))
   (.start server)
-  (.stop server)
-  )
+  (.stop server))
+
