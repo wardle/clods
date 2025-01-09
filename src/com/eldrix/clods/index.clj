@@ -150,7 +150,7 @@
 
 
 (defn all-organizations
-  "Returns a lazy sequence of all of the organisations.
+  "Returns a lazy sequence of all organisations.
    The reader must remain open until the sequence is fully realised."
   [^IndexReader reader]
   (->> (range (.maxDoc reader))
