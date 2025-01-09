@@ -56,7 +56,8 @@
       (when (:active role) (.add doc (StringField. "role" ^String (:id role) Field$Store/NO))))
     doc))
 
-(defn write-batch! [^IndexWriter writer nhspd orgs]
+(defn write-batch!
+  [^IndexWriter writer nhspd orgs]
   (dorun (map (fn [org] (.updateDocument writer (Term. "id" (make-org-id org)) (make-organisation-doc nhspd org))) orgs))
   (.commit writer))
 
@@ -78,8 +79,8 @@
     (when-let [doc (.doc searcher (.-doc score-doc))]
       (nippy/thaw (.-bytes (.getBinaryValue doc "data"))))))
 
-(defn ^IndexWriter open-index-writer
-  [filename]
+(defn open-index-writer
+  ^IndexWriter [filename]
   (let [analyzer (StandardAnalyzer.)
         directory (FSDirectory/open (Paths/get filename (into-array String [])))
         writer-config (doto (IndexWriterConfig. analyzer)
@@ -106,17 +107,18 @@
     (write-metadata writer "code-systems" code-systems)
     (.forceMerge writer 1)))
 
-(defn ^IndexReader open-index-reader
-  [filename]
+(defn open-index-reader
+  ^IndexReader [filename]
   (let [directory (FSDirectory/open (Paths/get filename (into-array String [])))]
     (DirectoryReader/open directory)))
 
-(defn ^Query q-orgId
+(defn q-orgId
   "Make a query for the identifier specified.
   - root      : (optional) root OID
   - extension : organisation extension (code)."
-  ([^String extension] (q-orgId nil extension))
-  ([^String root ^String extension]
+  (^Query [^String extension]
+   (q-orgId nil extension))
+  (^Query [^String root ^String extension]
    (-> (BooleanQuery$Builder.)
        (.add (TermQuery. (Term. "root" ^String (or root hl7-oid-health-and-social-care-organisation-identifier))) BooleanClause$Occur/MUST)
        (.add (TermQuery. (Term. "extension" (str/upper-case extension))) BooleanClause$Occur/MUST)
@@ -138,7 +140,8 @@
    - root      : (optional) the identifier root;
                  default '2.16.840.1.113883.2.1.3.2.4.18.48'
    - extension : organisation code; eg. '7A4BV'."
-  ([^IndexSearcher searcher extension] (fetch-org searcher hl7-oid-health-and-social-care-organisation-identifier extension))
+  ([^IndexSearcher searcher extension]
+   (fetch-org searcher hl7-oid-health-and-social-care-organisation-identifier extension))
   ([^IndexSearcher searcher root extension]
    (when-not (str/blank? extension)
      (when-let [score-doc ^ScoreDoc (first (seq (.-scoreDocs ^TopDocs (.search searcher (q-orgId root extension) 1))))]
