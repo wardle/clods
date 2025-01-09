@@ -17,15 +17,20 @@
 
 (set! *warn-on-reflection* true)
 
-(def index-version 1)
+(def index-version 2)
 
 (def ^String hl7-oid-health-and-social-care-organisation-identifier
   "The default organisation root is the HL7 OID representing a
   HealthAndSocialCareOrganisationIdentifier"
   "2.16.840.1.113883.2.1.3.2.4.18.48")
 
-(defn ^String make-org-id [org]
-  (str (get-in org [:orgId :root]) "#" (get-in org [:orgId :extension])))
+(defn org-id->str
+  ^String [{:keys [root extension]}]
+  (str root "#" extension))
+
+(defn make-org-id
+  ^String [{:keys [orgId]}]
+  (org-id->str orgId))
 
 (defn make-organisation-doc
   "Turn an organisation into a Lucene document.
@@ -54,6 +59,9 @@
       (.add doc (LatLonDocValuesField. "latlon" lat long)))
     (doseq [role (:roles org)]
       (when (:active role) (.add doc (StringField. "role" ^String (:id role) Field$Store/NO))))
+    (doseq [rel (:relationships org)]
+      (when (:active rel)
+        (.add doc (StringField. ^String (:id rel) (org-id->str (:target rel)) Field$Store/NO))))
     doc))
 
 (defn write-batch!
@@ -267,6 +275,51 @@
         (.add builder (TermQuery. (Term. "role" ^String role)) BooleanClause$Occur/SHOULD))
       (.build builder))))
 
+(defn q-rel
+  "Query for organisations with a relationship *to* the specified organisation.
+  As ODS only stores parent relationships ie child org (x) has a parent org (y),
+  this query essentially helps traverse from parent to child.
+  Parameters:
+  - org-id : a map with :root and :extension
+  - rel-type-or-types - ODS relationship code (e.g. 'RE4' or collection #{\"RE4\"})
+  See https://www.odsdatasearchandexport.nhs.uk/referenceDataCatalogue/Relationships_571324965.html"
+  [org-id rel-type-or-types]
+  (let [s (org-id->str org-id)]
+    (cond
+      (string? rel-type-or-types)
+      (TermQuery. (Term. ^String rel-type-or-types s))
+      :else
+      (q-or (map #(TermQuery. (Term. ^String % s)) rel-type-or-types)))))
+
+
+(def all-relationship-types
+  #{"RE2" "RE3" "RE4" "RE5" "RE6" "RE8" "RE9" "RE10" "RE11"})
+
+(def all-child-relation-types
+  "A set of relationship types that conceptually mean that the target is the
+  'parent'. RE2 is 'subdivision', RE3 is 'directed by', RE4 is 'commissioned by'
+  and RE6 is 'operated by'. Other relation types are about geography, or
+  describe partnerships, or relate to payee/payer relations."
+  #{"RE2" "RE3" "RE4" "RE6"})
+
+(defn child-relationships
+  "Return a sequence of organisations that have the specified org as the target;
+  in essence returning 'children' of the parent by virtue of one of the
+  relationship types specified, or any 'child' relationship if omitted. For
+  convenience, a role or sequence of roles may be provided to limit results
+  to organisations with that or those roles.
+  - rel-types - a string or collection of strings of relationship types (e.g. \"RE6\"
+  - limit     - limit results, default 1000
+  If rel-types is nil, a default set of relationship types conceptually fitting
+  the idea of 'child' will be used."
+  [^IndexSearcher searcher
+   {:keys [orgId root extension org rel-types limit roles]}]
+  (let [orgId (or orgId (if org (:orgId org) {:root (or root hl7-oid-health-and-social-care-organisation-identifier) :extension extension}))
+        q (q-rel orgId (or rel-types all-child-relation-types))
+        q' (if (seq roles) (q-and [q (q-roles roles)]) q)]
+    (->> (do-query searcher q' (or limit 1000))
+         (map doc->organisation))))
+
 (defn make-search-query
   "Create a search query for an organisation.
   Parameters:
@@ -339,12 +392,13 @@
   (build-index nhspd (:organisations ods) "/var/tmp/ods")
 
   ;; search for an organisation
-  (def reader (open-index-reader "ods-2021-08"))
+  (def reader (open-index-reader "ods-2024-01-08.db"))
   (def searcher (IndexSearcher. reader))
   (read-metadata searcher "code-systems")
   (q-orgId "BE1EC")
   (fetch-org searcher "7A4BV")
-
+  (child-relationships searcher {:org (fetch-org searcher nil "7A4")})
+  (child-relationships searcher {:extension "7A4" :rel-types "RE6"})
   (do-raw-query searcher (q-orgId "RWMBV") 100)
   (time (filter :active (map doc->organisation (do-raw-query searcher (q-tokens "name" "rookwood hosp") 100))))
   (LatLonPoint/newDistanceQuery "latlon" 51.506764 3.1893604 1000)
