@@ -7,9 +7,7 @@
             [com.eldrix.nhspd.core :as nhspd])
   (:import (org.apache.lucene.search IndexSearcher)
            (java.io Closeable)
-           (com.eldrix.nhspd.core NHSPD)
-           (java.nio.file.attribute FileAttribute)
-           (java.nio.file Files)))
+           (com.eldrix.nhspd.core NHSPD)))
 
 (defn download
   "Download the latest ODS release.
@@ -71,6 +69,7 @@
 (defprotocol ODS
   (fetch-org [this root extension] "Fetch an organisation by identifier")
   (search-org [this params] "Search for an organisation using the parameters specified.")
+  (child-orgs [this params])
   (all-organizations [this] "Returns a lazy sequence of all organisations")
   (code-systems [this] "Return all ODS codesystems")
   (fetch-postcode [this pc] "Return NHSPD data about the specified postcode.")
@@ -111,6 +110,7 @@
        ODS
        (fetch-org [_ root extension] (index/fetch-org searcher root extension))
        (search-org [_ params] (search searcher nhspd params))
+       (child-orgs [_ params] (index/child-relationships searcher params))
        (all-organizations [_] (index/all-organizations reader))
        (code-systems [_] code-systems)
        (fetch-postcode [_ pc] (nhspd/fetch-postcode nhspd pc))
@@ -226,8 +226,7 @@
   "Normalizes an organisation, turning legacy ODS OID/extension identifiers into
   namespaced URI/value identifiers"
   [org]
-  (if (nil? org)
-    nil
+  (when org
     (let [org-type (get orgRecordClass->namespace (:orgRecordClass org))]
       (-> org
           (dissoc :orgId)
@@ -288,15 +287,70 @@
                        test-seq (for [s org-succs t target-succs] [s t])]
                    (some (fn [[s t]] (related? ods s t :rels rels :historic? false)) test-seq))))))))
 
+(defn org->id
+  "Turn an organisation into a tuple of root and extension."
+  [{:keys [orgId]}]
+  (vector (:root orgId) (:extension orgId)))
+
+(defn equivalent-org-ids
+  "Return a set of all successor and predecessor organisational identifiers.
+  Example:
+  ```
+  (equivalent-org-ids ods {:extension \"7a4bv\"})
+  =>
+  #{[\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"7A4BV\"]
+    [\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"RVGBV\"]
+    [\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"WH2BV\"]
+    [\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"RRBBV\"]
+    [\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"RWMBV\"]}"
+  [ods {:keys [org orgId root extension]}]
+  (let [org (or org (if orgId (fetch-org ods (:root orgId) (:extension orgId)) (fetch-org ods root extension)))
+        orgs (active-successors ods org)                    ;; all successors
+        orgs-id (into #{} (map org->id) orgs)
+        predecessors (mapcat #(all-predecessors ods %) orgs)] ;; get all predecessors of all successors and possibly children
+    (into orgs-id (map org->id) predecessors)))
+
+(defn equivalent-and-child-org-ids
+  "Given a root and extension, returns a set of tuples of root and extensions
+  representing successor and predecessor organisations as well as 'child'
+  organisations.
+  For example, to get all Cardiff and Vale UHB organisational identifiers:
+  ```
+  (into #{} (map second) (equivalent-org-ids-and-children ods nil \"7A4\"))
+  =>
+  #{\"RRA\"\n  \"V08122\"\n  \"W00124\"\n  \"7A44A\"\n  \"W97286\"\n  \"W97619\"\n  \"RWM\" ... }
+  ```
+  "
+  [ods root extension]
+  (let [equivalent (equivalent-org-ids ods {:root root :extension extension})
+        children (map org->id (mapcat (fn [[root extension]] (child-orgs ods {:root root :extension extension})) equivalent))]
+    (into equivalent children)))
+
 (comment
   (require '[clojure.spec.test.alpha :as stest])
   (stest/instrument)
-  (def ods (open-index {:ods-dir "ods-2022-01-24.db" :nhspd-dir "../nhspd/nhspd-2022-02-01.db"}))
+  (def ods (open-index {:ods-dir "ods-2024-01-08.db" :nhspd-dir "../pc4/data/nhspd-2022-11-10.db"}))
+  (def ods (open-index {:ods-dir "../pc4/data/ods-2022-01-24.db" :nhspd-dir "../pc4/data/nhspd-2022-11-10.db"}))
   (active-successors ods (fetch-org ods nil "RWM"))
-
+  (all-predecessors ods (fetch-org ods nil "7A4BV"))
+  (active-successors ods (fetch-org ods nil "7A4BV"))
+  (fetch-org ods nil "7A4")
+  (sort (map (fn [[r e]] (str e ":" (:name (fetch-org ods r e)))) (equivalent-org-ids-and-children ods nil "7a4")))
+  (= (equivalent-org-ids-and-children ods nil "RWM")
+     (equivalent-org-ids-and-children ods nil "7A4")))
+  (time (let [extensions (into #{} (map second) (equivalent-org-ids ods {:extension "7A4"}))
+              children (map #(get-in % [:orgId :extension]) (mapcat #(child-orgs ods {:extension %}) extensions))]
+          (into extensions children)))
+  (->> (equivalent-org-ids ods {:extension "RWM"})
+       (map second)
+       (map #(fetch-org ods nil %))
+       (mapcat #(child-orgs ods {:org %}))
+       (map :name))
   (related? ods (fetch-org ods nil "RVFAR") (fetch-org ods nil "7A4"))
   (related? ods (fetch-org ods nil "RWMBV") (fetch-org ods nil "7A4"))
   (fetch-org ods nil "RWM")
+  (search-org ods {:s "castle gate" :limit 10})
+  (search-org ods {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}})
   (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
     (fetch-org idx nil "RWMBV"))
 
