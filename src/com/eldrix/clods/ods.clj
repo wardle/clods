@@ -155,7 +155,7 @@
 
 (defn- org-by-code
   "Returns organisations defined by ODS code (e.g. 7A4BV for UHW, Cardiff) as a demonstration of parsing the ODS XML.
-  This ia a private demonstration, rather than intended for operational use."
+  This is only intended for development and testing purposes, rather than operational use."
   [in code]
   (let [ch (async/chan)
         out (async/chan)]
