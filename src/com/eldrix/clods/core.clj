@@ -337,7 +337,7 @@
   (fetch-org ods nil "7A4")
   (sort (map (fn [[r e]] (str e ":" (:name (fetch-org ods r e)))) (equivalent-org-ids-and-children ods nil "7a4")))
   (= (equivalent-org-ids-and-children ods nil "RWM")
-     (equivalent-org-ids-and-children ods nil "7A4")))
+     (equivalent-org-ids-and-children ods nil "7A4"))
   (time (let [extensions (into #{} (map second) (equivalent-org-ids ods {:extension "7A4"}))
               children (map #(get-in % [:orgId :extension]) (mapcat #(child-orgs ods {:extension %}) extensions))]
           (into extensions children)))
