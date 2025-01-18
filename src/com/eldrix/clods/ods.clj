@@ -168,7 +168,7 @@
 (defn stream-organisations
   [in nthreads batch-size]
   (let [ch (async/chan)
-        out (async/chan batch-size (partition-all batch-size))]
+        out (async/chan 1 (partition-all batch-size))]
     (async/thread (read-organisations in ch true))
     (async/pipeline nthreads out xf-organisation-xml->map ch)
     out))
