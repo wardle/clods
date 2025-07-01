@@ -313,7 +313,7 @@
   If rel-types is nil, a default set of relationship types conceptually fitting
   the idea of 'child' will be used."
   [^IndexSearcher searcher
-   {:keys [orgId root extension org rel-types limit roles]}]
+   {:keys [org orgId root extension rel-types limit roles]}]
   (let [orgId (or orgId (if org (:orgId org) {:root (or root hl7-oid-health-and-social-care-organisation-identifier) :extension extension}))
         q (q-rel orgId (or rel-types all-child-relation-types))
         q' (if (seq roles) (q-and [q (q-roles roles)]) q)]
@@ -332,7 +332,7 @@
   - :from-location : a map containing:
        - :lat     : latitude (WGS84)
        - :lon     : longitude (WGS84)
-       - :range   : range in metres (optional)
+       - :range   : range in metres
   - limit         : limit on number of search results"
   [{:keys [s n address fuzzy only-active? from-location roles _limit] :or {fuzzy 0 only-active? true}}]
   (let [{:keys [lat lon range]} from-location]

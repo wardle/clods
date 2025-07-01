@@ -7,8 +7,7 @@
    3. The codes.        : access using `all-codes`.
    4. The organisations :.access using `stream-organisations`."
   (:require [clojure.core.async :as async]
-            [clojure.tools.logging.readable :as log]
-            [clojure.data.json :as json]
+            [clojure.string :as str]
             [clojure.data.xml :as xml]
             [clojure.data.zip.xml :refer [xml-> xml1-> attr= attr text]]
             [clojure.zip :as zip]
@@ -27,7 +26,7 @@
        :publicationType    (xml1-> root :Manifest :PublicationType (attr :value))
        :publicationDate    (xml1-> root :Manifest :PublicationDate (attr :value))
        :contentDescription (xml1-> root :Manifest :ContentDescription (attr :value))
-       :recordCount        (Integer/parseInt (xml1-> root :Manifest :RecordCount (attr :value)))})))
+       :recordCount        (xml1-> root :Manifest :RecordCount (attr :value) parse-long)})))
 
 (defn- parse-concept
   [code-system code]
@@ -64,57 +63,68 @@
    :uprn     (xml1-> l :UPRN text)})
 
 (defn- parse-role [role]
-  {:id        (xml1-> role (attr :id))
-   :isPrimary (let [v (xml1-> role (attr :primaryRole))] (if v (json/read-str v) false))
-   :active    (= "Active" (xml1-> role :Status (attr :value)))
-   :startDate (xml1-> role :Date :Start (attr :value))
-   :endDate   (xml1-> role :Date :End (attr :value))})
+  {:uniqueRoleId (xml1-> role (attr :uniqueRoleId) parse-long)
+   :id           (xml1-> role (attr :id))
+   :isPrimary    (if-let [primaryRole (xml1-> role (attr :primaryRole))] (parse-boolean primaryRole) false)
+   :active       (= "Active" (xml1-> role :Status (attr :value)))
+   :startDate    (xml1-> role :Date :Start (attr :value))
+   :endDate      (xml1-> role :Date :End (attr :value))})
 
 (defn- parse-roles [roles]
   (xml-> roles :Role parse-role))
 
 (defn- parse-succ [succ]
-  {:date        (xml1-> succ :Date :Start (attr :value))
-   :type        (xml1-> succ :Type text)
-   :target      (xml1-> succ :Target :OrgId parse-orgid)
-   :primaryRole (xml1-> succ :Target :PrimaryRoleId (attr :id))})
+  {:uniqueSuccId (xml1-> succ (attr :uniqueSuccId) parse-long)
+   :date         (xml1-> succ :Date :Start (attr :value))
+   :type         (xml1-> succ :Type text)
+   :target       (xml1-> succ :Target :OrgId parse-orgid)
+   :primaryRole  (xml1-> succ :Target :PrimaryRoleId (attr :id))})
 
 (defn- parse-rel [rel]
-  {:id        (xml1-> rel (attr :id))
-   :startDate (xml1-> rel :Date :Start (attr :value))
-   :endDate   (xml1-> rel :Date :End (attr :value))
-   :active    (= "Active" (xml1-> rel :Status (attr :value)))
-   :target    (xml1-> rel :Target :OrgId parse-orgid)})
+  {:uniqueRelId (xml1-> rel (attr :uniqueRelId) parse-long)
+   :id          (xml1-> rel (attr :id))
+   :startDate   (xml1-> rel :Date :Start (attr :value))
+   :endDate     (xml1-> rel :Date :End (attr :value))
+   :active      (= "Active" (xml1-> rel :Status (attr :value)))
+   :target      (xml1-> rel :Target :OrgId parse-orgid)})
 
 (defn- parse-rels [rels]
   (xml-> rels :Rel parse-rel))
 
+(defn- parse-date-range
+  [loc]
+  {:start (xml1-> (zip/up loc) :Start (attr :value))
+   :end   (xml1-> (zip/up loc) :End (attr :value))})
+
 (defn- parse-org
   [org]
-  (let [roles (xml-> org :Organisation :Roles parse-roles)
-        succession (->> (xml-> org :Organisation :Succs :Succ parse-succ)
-                        (group-by :type))]
-    (merge
-      {:orgId          (xml1-> org :Organisation :OrgId parse-orgid)
-       :orgRecordClass (keyword (xml1-> org :Organisation (attr :orgRecordClass)))
-       :isReference    (let [v (xml1-> org :Organisation (attr :refOnly))] (if v (json/read-str v) false))
-       :name           (xml1-> org :Organisation :Name text)
-       :location       (xml1-> org :Organisation :GeoLoc :Location parse-location)
-       :active         (= "Active" (xml1-> org :Organisation :Status (attr :value)))
-       :roles          roles
-       :contacts       (xml-> org :Organisation :Contacts parse-contacts)
-       :primaryRole    (first (filter :isPrimary roles))
-       :relationships  (xml-> org :Organisation :Rels parse-rels)}
-      (when-let [predecessors (get succession "Predecessor")]
-        {:predecessors predecessors})
-      (when-let [successors (get succession "Successor")]
-        {:successors successors})
-      (when-let [op (xml1-> org :Organisation :Date :Type (attr= :value "Operational"))]
-        {:operational {:start (xml1-> (zip/up op) :Start (attr :value))
-                       :end   (xml1-> (zip/up op) :End (attr :value))}})
-      (when-let [op (xml1-> org :Organisation :Date :Type (attr= :value "Legal"))]
-        {:legal {:start (xml1-> (zip/up op) :Start (attr :value))
-                 :end   (xml1-> (zip/up op) :End (attr :value))}}))))
+  (let [is-reference (or (xml1-> org :Organisation (attr :refOnly) parse-boolean) false)]
+    (when-not is-reference
+      (let [roles (xml-> org :Organisation :Roles parse-roles)
+            succession (group-by :type (xml-> org :Organisation :Succs :Succ parse-succ))
+            predecessors (get succession "Predecessor")
+            successors (get succession "Successor")
+            operational (xml1-> org :Organisation :Date :Type (attr= :value "Operational") parse-date-range)
+            legal (xml1-> org :Organisation :Date :Type (attr= :value "Legal") parse-date-range)]
+        (cond-> {:orgId          (xml1-> org :Organisation :OrgId parse-orgid)
+                 :lastChangeDate (xml1-> org :Organisation :LastChangeDate (attr :value))
+                 :orgRecordClass (keyword (xml1-> org :Organisation (attr :orgRecordClass)))
+                 :isReference    is-reference
+                 :name           (xml1-> org :Organisation :Name text)
+                 :location       (xml1-> org :Organisation :GeoLoc :Location parse-location)
+                 :active         (= "Active" (xml1-> org :Organisation :Status (attr :value)))
+                 :roles          roles
+                 :contacts       (xml-> org :Organisation :Contacts parse-contacts)
+                 :primaryRole    (first (filter :isPrimary roles))
+                 :relationships  (xml-> org :Organisation :Rels parse-rels)}
+          (seq predecessors)
+          (assoc :predecessors predecessors)
+          (seq successors)
+          (assoc :successors successors)
+          operational
+          (assoc :operational operational)
+          legal
+          (assoc :legal legal))))))
 
 (defn- read-organisations
   "Blocking; processes organisations from the TRUD ODS XML file `in`, sending an
@@ -137,7 +147,7 @@
   it into a clojure map, removing organisations that are only references."
   (comp (map zip/xml-zip)
         (map parse-org)
-        (filter #(not (:isReference %)))))
+        (remove nil?)))
 
 (defn all-code-systems
   "Returns ODS XML codesystem definitions from the 'codesystems' header as a map of name keyed by oid"
@@ -207,6 +217,7 @@
   ;; get one organisation
   (def org (first (take 5 (filter #(= :Organisation (:tag %)) (:content orgs)))))
 
+  (require '[clojure.data.json :as json])
   (json/write-str (parse-org (zip/xml-zip org)))
 
   ;; get code systems
