@@ -658,8 +658,8 @@
       (coll? primary-role) (q-org-primary-roles primary-role)
       rc (q-org-rc rc)
       child-of (q-org-child-of child-of)
-      from-location (-> (q-org-within-distance osnrth1m oseast1m range)
-                        (q-org-order-by-distance))
+      (and osnrth1m oseast1m range) (-> (q-org-within-distance osnrth1m oseast1m range)
+                                        (q-org-order-by-distance))
       limit (h/limit limit))))
 
 (defn search
