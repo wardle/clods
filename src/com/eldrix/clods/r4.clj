@@ -44,7 +44,7 @@
 
 (defn make-aliases
   [ods org]
-  (->> (clods/all-predecessors ods org)
+  (->> (clods/org-code->all-predecessors ods (get-in org [:orgId :extension]) {:as :orgs})
        (map :name)
        (into #{})))
 

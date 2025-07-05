@@ -3,7 +3,7 @@
             [deps-deploy.deps-deploy :as dd]))
 
 (def lib 'com.eldrix/clods)
-(def version (format "2.0.%s-alpha" (b/git-count-revs nil)))
+(def version (format "2.0.%s-SNAPSHOT" (b/git-count-revs nil)))
 (def class-dir "target/classes")
 
 (def basis

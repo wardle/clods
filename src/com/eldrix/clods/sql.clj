@@ -1,21 +1,21 @@
 (ns com.eldrix.clods.sql
   "A SQLite store for NHS ODS data."
   (:require
-   [clojure.core.async :as async]
-   [clojure.spec.alpha :as s]
-   [clojure.java.io :as io]
-   [clojure.set :as set]
-   [clojure.string :as str]
-   [com.eldrix.clods.download :as dl]
-   [com.eldrix.nhspd.core :as nhspd]
-   [honey.sql :as sql]
-   [honey.sql.helpers :as h]
-   [next.jdbc :as jdbc]
-   [next.jdbc.connection]
-   [next.jdbc.date-time]
-   [next.jdbc.result-set :as rs])
+    [clojure.core.async :as async]
+    [clojure.spec.alpha :as s]
+    [clojure.java.io :as io]
+    [clojure.set :as set]
+    [clojure.string :as str]
+    [com.eldrix.clods.download :as dl]
+    [com.eldrix.nhspd.core :as nhspd]
+    [honey.sql :as sql]
+    [honey.sql.helpers :as h]
+    [next.jdbc :as jdbc]
+    [next.jdbc.connection]
+    [next.jdbc.date-time]
+    [next.jdbc.result-set :as rs])
   (:import
-   (java.time Instant LocalDate LocalTime ZoneOffset)))
+    (java.time Instant LocalDate LocalTime ZoneOffset)))
 
 (set! *warn-on-reflection* true)
 
@@ -90,7 +90,9 @@
    "create index if not exists role_idx_role_id on role(id)"
    "create index if not exists relationship_idx_source_org_code on relationship(source_org_code)"
    "create index if not exists relationship_idx_target_org_code on relationship(target_org_code)"
-   "create index if not exists relationship_idx_children on relationship(source_org_code, id)"])
+   "create index if not exists relationship_idx_children on relationship(source_org_code, id)"
+   "create virtual table search using fts5 (org_code, name, address1, address2, town, county, postcode, content=\"organisation\")"
+   "insert into search (org_code, name, address1, address2, town, county, postcode) select org_code,name,address1,address2,town,county,postcode from organisation"])
 
 (def drop-indexes
   ["drop index organisation_idx_coords"
@@ -99,7 +101,8 @@
    "drop index role_idx_role_id"
    "drop index relationship_idx_source_org_code"
    "drop index relationship_idx_target_org_code"
-   "drop index relationship_idx_children"])
+   "drop index relationship_idx_children"
+   "drop table search"])
 
 (defn up! [conn]
   (doseq [stmt create-schema]
@@ -302,8 +305,8 @@
 
 (defn normalize-rel
   [{:keys [id target_org_code]}]
-  {:id      id
-   :target  {:root hl7-oid-health-and-social-care-organisation-identifier, :extension target_org_code}})
+  {:id     id
+   :target {:root hl7-oid-health-and-social-care-organisation-identifier, :extension target_org_code}})
 
 (defn normalize-successor
   [{:keys [primary_role successor_org_code]}]
@@ -369,7 +372,7 @@
                :primaryRole (reduce (fn [_ {:keys [isPrimary] :as role}] (when isPrimary (reduced role))) nil roles)
                :relationships (map normalize-rel (jdbc/execute! conn ["select id, target_org_code from relationship where source_org_code=?" extension] {:builder-fn rs/as-unqualified-maps})))
         (cond->
-         (seq successors)
+          (seq successors)
           (assoc :successors successors)
           (seq predecessors)
           (assoc :predecessors predecessors)))))
@@ -378,6 +381,11 @@
   [conn extension]
   (when-let [org (execute-one! conn ["select * from organisation where org_code=?" extension])]
     (extended-org conn (normalize-org org))))
+
+(defn random-orgs
+  [conn n]
+  (map #(extended-org conn (normalize-org %))
+       (execute! conn ["select * from organisation ORDER BY RANDOM() LIMIT ?" n])))
 
 (defn all-predecessors-sql
   [org-code]
@@ -453,13 +461,13 @@
   (cond-> {:select :source_org_code
            :from   :relationship
            :where  [:= :target_org_code org-code]}
-    (string? rels)              (h/where := :id rels)
-    (coll? rels)                (h/where :in :id rels)
-    (string? roles)             (-> (h/join :role [:= :role/org_code :source_org_code])
-                                    (h/where := :role/id roles))
-    (coll? roles)               (-> (h/join :role [:= :role/org_code :source_org_code])
-                                    (h/where :in :role/id roles))
-    (and roles active)          (h/where := :role/active 1)
+    (string? rels) (h/where := :id rels)
+    (coll? rels) (h/where :in :id rels)
+    (string? roles) (-> (h/join :role [:= :role/org_code :source_org_code])
+                        (h/where := :role/id roles))
+    (coll? roles) (-> (h/join :role [:= :role/org_code :source_org_code])
+                      (h/where :in :role/id roles))
+    (and roles active) (h/where := :role/active 1)
     (and (empty? roles) active) (-> (h/join :organisation [:= :organisation/org_code :source_org_code])
                                     (h/where := :organisation/active 1))))
 
@@ -499,36 +507,44 @@
                 :select         :org_code :from :children})))
 
 (defn all-child-org-codes
-  [conn org-code]
-  (into #{} (map :org_code) (jdbc/plan conn (all-child-orgs-sql org-code))))
+  ([conn org-code]
+   (into #{} (map :org_code) (jdbc/plan conn (all-child-orgs-sql org-code))))
+  ([conn org-code rel-type-ids]
+   (into #{} (map :org_code) (jdbc/plan conn (all-child-orgs-sql org-code rel-type-ids)))))
+
+(defn orgs-with-primary-role
+  "Returns organisations with one of the roles specified."
+  ([conn role-or-roles org-codes]
+   (into #{}
+         (map :org_code)
+         (jdbc/plan conn
+                    (sql/format {:select :org_code :from :role
+                                 :where  [:and [:= :is_primary 1]
+                                          (if (coll? role-or-roles) [:in :id role-or-roles]
+                                                                    [:= :id role-or-roles])
+                                          [:in :org_code org-codes]]})))))
 
 (defn q-org-name
   "Update the query to limit to organisations with the specified name."
   [query nm]
-  (h/where query [:like :organisation.name (str "%" nm "%")]))
-
-(defn q-org-address
-  [query address]
-  (let [s (str "%" address "%")]
-    (h/where query :or
-             [:like :organisation.address1 s]
-             [:like :organisation.address2 s]
-             [:like :organisation.town s]
-             [:like :organisation.country s]
-             [:like :organisation.country s]
-             [:like :organisation.postcode s])))
+  (if-not (str/blank? nm)
+    (h/where query [:in :organisation/org_code [[:raw "select org_code from search where name match " [:lift nm]]]])
+    query))
 
 (defn q-org-s
+  "Update the query to limit to organisations matching search string 's'. This will search
+  columns org_code, name, address1, address2, town, county and postcode."
   [query s]
-  (let [s (str "%" s "%")]
-    (h/where query :or
-             [:like :organisation.name s]
-             [:like :organisation.address1 s]
-             [:like :organisation.address2 s]
-             [:like :organisation.town s]
-             [:like :organisation.country s]
-             [:like :organisation.country s]
-             [:like :organisation.postcode s])))
+  (if-not (str/blank? s)
+    (h/where query [:in :organisation/org_code [[:raw "select org_code from search where search match " [:lift s]]]])
+    query))
+
+(defn q-org-address
+  [query s]
+  (if-not (str/blank? s)                                    ;; define fts fields to search....
+    (let [s' (str "{address1 address2 town county postcode} : (" s ")")]
+      (h/where query [:in :organisation/org_code [[:raw "select org_code from search where search match " [:lift s']]]]))
+    query))
 
 (defn q-org-active
   "Update the query to limit to only active organisations."
@@ -549,14 +565,31 @@
 (defn q-org-roles
   "Update the query to limit to organisations with one of the specified roles.
   Note: this may return multiple rows per organisation if an organisation has
-  multiple roles and 'only-primary' is false."
+  multiple roles and 'only-primary' is false. It would usually be more
+  appropriate to use [[q-org-primary-role]]."
   ([query roles]
    (q-org-roles query roles {}))
   ([query roles {:keys [only-primary] :or {only-primary true}}]
    (h/join query :role [:and
                         [:= :organisation/org_code :role/org_code]
                         [:in :role/id roles]
-                        (when only-primary [:= :role/is_primary true])])))
+                        (when only-primary [:= :role/is_primary 1])])))
+
+(defn q-org-primary-role
+  "Update the query to limit to organisations with a primary role of 'role'."
+  [query role]
+  (h/join query :role [:and
+                       [:= :organisation/org_code :role/org_code]
+                       [:= :role/id role]
+                       [:= :role/is_primary 1]]))
+
+(defn q-org-primary-roles
+  "Update the query to limit to organisations with a primary role of 'roles'."
+  [query roles]
+  (h/join query :role [:and
+                       [:= :organisation/org_code :role/org_code]
+                       [:in :role/id roles]
+                       [:= :role/is_primary 1]]))
 
 (defn q-org-within-distance
   "Update the query to limit to organisations within 'd' metres of the
@@ -587,6 +620,14 @@
   [query {:keys [org-code] :as params}]
   (h/where query :in :organisation/org_code (proximal-child-orgs-sql org-code params)))
 
+(defn escape-fts-string
+  "Given user entered string 's' return a string suitable for fts matching."
+  [s]
+  (->> (str/split (str/lower-case s) #"\W")
+       (remove str/blank?)
+       (map #(str % "*"))
+       (str/join " ")))
+
 (defn make-search-query
   "Create a search query for an organisation / site.
   Parameters:
@@ -595,28 +636,31 @@
   - :address       : search within address of organisation
   - :active        : only include active organisations (default, true)
   - :roles         : a string or vector of roles e.g. \"RO87\"
+  - :primary-role  : a string or vector of roles e.g. \"RO177\"
   - :rc            : limit to a record class e.g. \"RC1\" 'organisation' and \"RC2\" for 'site'
   - :child-of      : a map containing :org-code of parent organisation and
                      optionally including :rels, :roles and :active
   - :from-location : a map containing:
            - :osnrth1m  : OS northing
            - :oseast1m  : OS easting
-           - :range     : range in metres
+           - :range     : range in metres, default 5000
   - limit         : limit on number of search results"
-  [query {:keys [s n address active only-active? child-of from-location roles rc limit] :or {active true}}]
-  (let [{:keys [osnrth1m oseast1m range]} from-location]
-    (cond-> (or query {:select :org_code :from :organisation})
-      s               (q-org-s s)
-      n               (q-org-name n)
-      address         (q-org-address address)
-      active          (q-org-active)
+  [query {:keys [s n address active child-of from-location roles primary-role rc limit] :or {active true}}]
+  (let [{:keys [osnrth1m oseast1m range] :or {range 5000}} from-location]
+    (cond-> (or query {:select :organisation/org_code :from :organisation})
+      s (q-org-s (escape-fts-string s))
+      n (q-org-name (escape-fts-string n))
+      address (q-org-address address)
+      active (q-org-active)
       (string? roles) (q-org-role roles)
-      (coll? roles)   (q-org-roles roles)
-      rc              (q-org-rc rc)
-      child-of        (q-org-child-of child-of)
-      from-location   (-> (q-org-within-distance osnrth1m oseast1m range)
-                          (q-org-order-by-distance))
-      limit           (h/limit limit))))
+      (coll? roles) (q-org-roles roles)
+      (string? primary-role) (q-org-primary-role primary-role)
+      (coll? primary-role) (q-org-primary-roles primary-role)
+      rc (q-org-rc rc)
+      child-of (q-org-child-of child-of)
+      from-location (-> (q-org-within-distance osnrth1m oseast1m range)
+                        (q-org-order-by-distance))
+      limit (h/limit limit))))
 
 (defn search
   "Perform a search for an organisation using the search parameters specified.
@@ -718,13 +762,13 @@
   (make-search-query nil {:child-of {:org-code "7A4"}})
 
   (time (clojure.pprint/print-table
-         (jdbc/execute! conn (sql/format (-> {:select :* :limit 20 :from :organisation}
-                                             (q-org-active)
-                                             (q-org-near-postcode nhspd "NP25 3NS" 50000)
-                                             #_(q-org-role "RO177") ;; prescribing cost centre -> GP
-                                             (q-org-roles #{"RO177" "RO72" "RO76" "RO80" "RO82" "RO87" "RO246" "RO247" "RO248" "RO249" "RO250" "RO251" "RO252" "RO253" "RO254" "RO255" "RO259" "RO260"})
-                                             (q-org-order-by-distance)))
-                        {:builder-fn rs/as-unqualified-maps})))
+          (jdbc/execute! conn (sql/format (-> {:select :* :limit 20 :from :organisation}
+                                              (q-org-active)
+                                              (q-org-near-postcode nhspd "NP25 3NS" 50000)
+                                              #_(q-org-role "RO177") ;; prescribing cost centre -> GP
+                                              (q-org-roles #{"RO177" "RO72" "RO76" "RO80" "RO82" "RO87" "RO246" "RO247" "RO248" "RO249" "RO250" "RO251" "RO252" "RO253" "RO254" "RO255" "RO259" "RO260"})
+                                              (q-org-order-by-distance)))
+                         {:builder-fn rs/as-unqualified-maps})))
 
   (require '[clojure.repl.deps :refer [add-libs]])
   (add-libs {'com.github.seancorfield/honeysql  {:mvn/version "2.6.1126"}

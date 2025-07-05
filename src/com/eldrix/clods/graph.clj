@@ -1,17 +1,18 @@
 (ns com.eldrix.clods.graph
   "Provides a graph API across UK organisational data."
-  (:require [clojure.tools.logging.readable :as log]
-            [com.eldrix.clods.core :as clods]
-            [com.eldrix.nhspd.coords :as coords]
-            [com.wsscode.pathom3.connect.operation :as pco]
-            [com.wsscode.pathom3.connect.indexes :as pci]
-            [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
-            [com.wsscode.pathom3.connect.runner :as pcr]
-            [com.wsscode.pathom3.interface.eql :as p.eql]
-            [clojure.string :as str]))
+  (:require
+    [clojure.string :as str]
+    [com.eldrix.clods.core :as clods]
+    [com.eldrix.nhspd.coords :as coords]
+    [com.wsscode.pathom3.connect.operation :as pco]
+    [com.wsscode.pathom3.connect.indexes :as pci]
+    [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
+    [com.wsscode.pathom3.interface.eql :as p.eql]))
 
 (defn target->identifier [{:keys [root extension]}]
   (hash-map (keyword (str "urn:oid:" root) "id") extension))
+
+(def default-assigning-authority "HSCIC")
 
 (defn add-namespaces [org]
   {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id
@@ -21,7 +22,7 @@
    :uk.nhs.ord/active         (:active org)
    :uk.nhs.ord/orgId          {:uk.nhs.ord.orgId/root                   (get-in org [:orgId :root])
                                :uk.nhs.ord.orgId/extension              (get-in org [:orgId :extension])
-                               :uk.nhs.ord.orgId/assigningAuthorityName (get-in org [:orgId :assigningAuthorityName])}
+                               :uk.nhs.ord.orgId/assigningAuthorityName (or (get-in org [:orgId :assigningAuthorityName]) default-assigning-authority)}
    :uk.nhs.ord/operational    {:uk.nhs.ord.operational/start (get-in org [:operational :start])
                                :uk.nhs.ord.operational/end   (get-in org [:operational :end])}
    :uk.nhs.ord/orgRecordClass (:orgRecordClass org)
@@ -97,34 +98,43 @@
 
 (pco/defresolver uk-org->is-part-of
   [{rels :uk.nhs.ord/relationships}]
-  {::pco/input [{:uk.nhs.ord/relationships [:uk.nhs.ord.relationship/id
-                                            :uk.nhs.ord.relationship/active
-                                            :urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]
+  {::pco/input  [{:uk.nhs.ord/relationships [:uk.nhs.ord.relationship/id
+                                             :uk.nhs.ord.relationship/active
+                                             :urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]
    ::pco/output [{:uk.nhs.ord/isPartOf [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]}
-  (when-let [rel (->> rels
-                      (map #(assoc % :priority (get clods/part-of-relationships (:uk.nhs.ord.relationship/id %))))
-                      (filter :uk.nhs.ord.relationship/active)
-                      (filter :priority)
-                      (sort-by :priority)
-                      first)]
-    {:uk.nhs.ord/isPartOf (dissoc rel :priority)}))
+  {:uk.nhs.ord/isPartOf
+   (when-let [rel (->> rels
+                       (map #(assoc % :priority (get clods/part-of-relationships (:uk.nhs.ord.relationship/id %))))
+                       (filter :uk.nhs.ord.relationship/active)
+                       (filter :priority)
+                       (sort-by :priority)
+                       first)]
+     (dissoc rel :priority))})
 
-(def orgRecordClass->namespace {:RC1 "https://fhir.nhs.uk/Id/ods-organization"
-                                :RC2 "https://fhir.nhs.uk/Id/ods-site"})
+(def orgRecordClass->namespace
+  {:RC1 "https://fhir.nhs.uk/Id/ods-organization"
+   :RC2 "https://fhir.nhs.uk/Id/ods-site"})
 
 (pco/defresolver uk-org->fhir-org-identifiers
   [{:uk.nhs.ord/keys [orgId orgRecordClass]}]
-  {::pco/output [{:org.hl7.fhir.Organization/identifier [:org.hl7.fhir.Identifier/system
-                                                         :org.hl7.fhir.Identifier/value]}]}
-  {:org.hl7.fhir.Organization/identifier [{:org.hl7.fhir.Identifier/system (:uk.nhs.ord/root orgId)
-                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)
-                                           :org.hl7.fhir.Identifier/use    :org.hl7.fhir.identifier-use/old}
-                                          {:org.hl7.fhir.Identifier/system (keyword (str "urn:oid." (:uk.nhs.ord/root orgId)))
-                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)
-                                           :org.hl7.fhir.Identifier/use    :org.hl7.fhir.identifier-use/official}
-                                          {:org.hl7.fhir.Identifier/system (get orgRecordClass->namespace orgRecordClass)
-                                           :org.hl7.fhir.Identifier/value  (:uk.nhs.ord/extension orgId)
-                                           :org.hl7.fhir.Identifier/use    :org.hl7.fhir.identifier-use/usual}]})
+  {::pco/input  [{:uk.nhs.ord/orgId
+                  [:uk.nhs.ord.orgId/root
+                   :uk.nhs.ord.orgId/extension]}
+                 :uk.nhs.ord/orgRecordClass]
+   ::pco/output [{:org.hl7.fhir.Organization/identifier
+                  [:org.hl7.fhir.Identifier/system
+                   :org.hl7.fhir.Identifier/value]}]}
+  {:org.hl7.fhir.Organization/identifier
+   (let [{:uk.nhs.ord.orgId/keys [root extension]} orgId]
+     [{:org.hl7.fhir.Identifier/system root
+       :org.hl7.fhir.Identifier/value  extension
+       :org.hl7.fhir.Identifier/use    :org.hl7.fhir.identifier-use/old}
+      {:org.hl7.fhir.Identifier/system (keyword (str "urn:oid." root))
+       :org.hl7.fhir.Identifier/value  extension
+       :org.hl7.fhir.Identifier/use    :org.hl7.fhir.identifier-use/official}
+      {:org.hl7.fhir.Identifier/system (get orgRecordClass->namespace orgRecordClass)
+       :org.hl7.fhir.Identifier/value  extension
+       :org.hl7.fhir.Identifier/use    :org.hl7.fhir.identifier-use/usual}])})
 
 (pco/defresolver uk-org->fhir-org-name
   [{:uk.nhs.ord/keys [name]}]
@@ -143,24 +153,32 @@
   {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id ods-site})
 
 (pco/defresolver uk-org->fhir-address
-  [{:uk.nhs.ord.location/keys [address1 address2 town postcode country]}]
-  {::pco/output [{:org.hl7.fhir.Organization/address [:org.hl7.fhir.Address/use
-                                                      :org.hl7.fhir.Address/type
-                                                      :org.hl7.fhir.Address/text
-                                                      :org.hl7.fhir.Address/line
-                                                      :org.hl7.fhir.Address/city
-                                                      :org.hl7.fhir.Address/district
-                                                      :org.hl7.fhir.Address/state
-                                                      :org.hl7.fhir.Address/postalCode
-                                                      :org.hl7.fhir.Address/country]}]}
+  [{:uk.nhs.ord/keys [location]}]
+  {::pco/input  [{:uk.nhs.ord/location
+                  [:uk.nhs.ord.location/address1
+                   :uk.nhs.ord.location/address2
+                   :uk.nhs.ord.location/town
+                   :uk.nhs.ord.location/postcode
+                   :uk.nhs.ord.location/country]}]
+   ::pco/output [{:org.hl7.fhir.Organization/address
+                  [:org.hl7.fhir.Address/use
+                   :org.hl7.fhir.Address/type
+                   :org.hl7.fhir.Address/text
+                   :org.hl7.fhir.Address/line
+                   :org.hl7.fhir.Address/city
+                   :org.hl7.fhir.Address/district
+                   :org.hl7.fhir.Address/state
+                   :org.hl7.fhir.Address/postalCode
+                   :org.hl7.fhir.Address/country]}]}
   {:org.hl7.fhir.Organization/address
-   [{:org.hl7.fhir.Address/use        :org.hl7.fhir.address-use/work
-     :org.hl7.fhir.Address/type       :org.hl7.fhir.address-type/both
-     :org.hl7.fhir.Address/text       (str/join "\n" (remove str/blank? [address1 address2 town country postcode]))
-     :org.hl7.fhir.Address/line       [address1 address2]
-     :org.hl7.fhir.Address/city       town
-     :org.hl7.fhir.Address/postalCode postcode
-     :org.hl7.fhir.Address/country    country}]})
+   (let [{:uk.nhs.ord.location/keys [address1 address2 town country postcode]} location]
+     [{:org.hl7.fhir.Address/use        :org.hl7.fhir.address-use/work
+       :org.hl7.fhir.Address/type       :org.hl7.fhir.address-type/both
+       :org.hl7.fhir.Address/text       (str/join "\n" (remove str/blank? [address1 address2 town country postcode]))
+       :org.hl7.fhir.Address/line       (filterv some? [address1 address2])
+       :org.hl7.fhir.Address/city       town
+       :org.hl7.fhir.Address/postalCode postcode
+       :org.hl7.fhir.Address/country    country}])})
 
 (pco/defresolver skos-preflabel
   [{:uk.nhs.ord/keys [name]}]
@@ -271,7 +289,8 @@
    "RO177" [264358009 1101131000000105]})
 
 (comment
-  (def clods (clods/open-index "ods-2022-01-24.db" "../nhspd/nhspd-2022-05-01.db"))
+  (def clods (clods/open-index {:f         "latest-clods.db"
+                                :nhspd-dir "../nhspd/nhspd-2022-05-01.db"}))
   (def org (clods/fetch-org clods nil "7A3B7"))
   org
   (map (fn [succ] (hash-map (keyword (str "urn:oid:" (get-in succ [:target :root])) "id") (get-in succ [:target :extension]))) (:predecessors org))
@@ -279,11 +298,11 @@
   (get (clods/fetch-postcode clods "cf14 4xw") "LSOA11")
   (clods/code-systems clods)
   22232009
+  (require '[com.wsscode.pathom3.connect.indexes :as pci])
   (def registry (-> (pci/register all-resolvers)
                     (assoc ::svc clods)))
   (require '[com.wsscode.pathom.viz.ws-connector.core :as pvc])
   (require '[com.wsscode.pathom.viz.ws-connector.pathom3 :as p.connector])
-
   (p.connector/connect-env registry {:com.wsscode.pathom.viz.ws-connector.core/parser-id 'clods})
 
   (uk-org {::svc clods}
@@ -297,12 +316,18 @@
                    [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id
                     :uk.nhs.ord/name
                     :uk.nhs.ord/orgId
-                    {:uk.nhs.ord/location [:uk.nhs.ord.location/postcode]}
+                    :org.hl7.fhir.Organization/address
+                    {:uk.nhs.ord/location
+                     [:uk.nhs.ord.location/address1
+                      :uk.nhs.ord.location/address2
+                      :uk.nhs.ord.location/town
+                      :uk.nhs.ord.location/postcode
+                      :uk.nhs.ord.location/country]}
                     :uk.nhs.ord/relationships
                     {:uk.nhs.ord/isOperatedBy [:uk.nhs.ord/name]}
-                    { :uk.nhs.ord/isPartOf [:uk.nhs.ord/name]}
-                    #_:org.hl7.fhir.Organization/identifier
-                    #_:org.hl7.fhir.Organization/name]}])
+                    {:uk.nhs.ord/isPartOf [:uk.nhs.ord/name]}
+                    :org.hl7.fhir.Organization/identifier
+                    :org.hl7.fhir.Organization/name]}])
   (p.eql/process registry
                  [{[:uk.nhs.fhir.Id/ods-organization "7A4"]
                    [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id
@@ -337,7 +362,7 @@
     registry
     [{'(uk.nhs.ord/search
          {:n     "castle gate"
-          :roles ["RO72"]})
+          :roles ["RO177" "RO72"]})
       [:org.hl7.fhir.Organization/name]}])
   (p.eql/process
     registry
