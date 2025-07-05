@@ -91,8 +91,12 @@
   (when-not (s/valid? ::open-index-params params)
     (throw (ex-info "Cannot open index: invalid parameters" (s/explain-data ::open-index-params params))))
   (let [ds (sql/get-ds f)                                   ;; TODO: could change to a connection pool if required
+        manifests (sql/manifests ds)
         managed-nhspd? (not nhspd)                          ;; are we managing nhspd service?
         nhspd (or nhspd (nhspd/open-index nhspd-dir))]
+    (log/debug "opening ODS " manifests)
+    (if (empty? manifests)
+      (log/warn "ODS database has no installed distributions"))
     (->ODS ds managed-nhspd? nhspd)))
 
 (defn valid-service?
