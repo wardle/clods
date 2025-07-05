@@ -136,7 +136,7 @@
     |- :n             : search for name of organisation
     |- :address       : search within address
     |- :fuzzy         : fuzziness factor (0-2)
-    |- :only-active?  : only include active organisations (default, true)
+    |- :active        : only include active organisations (default, true)
     |- :roles         : a string or vector of roles
     |- :primary-role  : a string or vector of roles
     |- :from-location : a map containing:
