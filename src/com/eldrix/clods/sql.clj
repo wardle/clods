@@ -413,7 +413,7 @@
   [conn org-code]
   (into #{} (map :org_code) (jdbc/plan conn (all-successors-sql org-code))))
 
-(defn equivalent-orgs
+(defn equivalent-org-codes
   "Returns a set of predecessor and successor organisation codes. Set will include
   the original organisation code. Unlike `all-equivalent-orgs` this will *not* return
   the same result and will depend on the starting organisation.
@@ -426,7 +426,7 @@
              (all-successors conn org-code)
              #{org-code}))
 
-(defn all-equivalent-orgs
+(defn all-equivalent-org-codes
   "Returns a set of equivalent organisation codes by looking at the successors, and
   then returning those and all predecessors. In this way, this returns the same
   result for any organisation within that set.
@@ -671,19 +671,19 @@
   (case as
     :orgs
     (map normalize-org
-         (execute! conn (sql/format (make-search-query {:select :organisation.* :from :organisation} params))))
+         (execute! conn (sql/format (make-search-query {:select :organisation/* :from :organisation} params))))
 
     :ext-orgs
     (map #(extended-org conn (normalize-org %))
-         (execute! conn (sql/format (make-search-query {:select :organisation.* :from :organisation} params))))
+         (execute! conn (sql/format (make-search-query {:select :organisation/* :from :organisation} params))))
 
     :codes
     (into #{} (map :org_code)
-          (jdbc/plan conn (sql/format (make-search-query {:select :org_code :from :organisation} params))))
+          (jdbc/plan conn (sql/format (make-search-query {:select :organisation/org_code :from :organisation} params))))
 
     :sorted-codes
     (into [] (map :org_code)
-          (jdbc/plan conn (sql/format (make-search-query {:select :org_code :from :organisation} params))))
+          (jdbc/plan conn (sql/format (make-search-query {:select :organisation/org_code :from :organisation} params))))
 
     ;; unsupported :as
     (throw (ex-info (str "Unsupported search return type '" as "'")

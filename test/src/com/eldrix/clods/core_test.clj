@@ -49,6 +49,15 @@
           :displayName "PRESCRIBING COST CENTRE"
           :codesystem  "2.16.840.1.113883.2.1.3.2.4.17.507"})))
 
+(deftest relations
+  (let [cav-7a4 (clods/related-org-codes *svc* "7A4")
+        cav-rwm (clods/related-org-codes *svc* "RWM")
+        nearby (clods/search-org *svc* {:as :codes :roles "RO177" :from-location {:postcode "CF14 4XW" :range 5000}})]
+    (is (empty? (remove cav-7a4 nearby))
+        "All GP surgeries within 5km of 'CF14 4XW' should be related to parent organisation '7A4'.")
+    (is (empty? (remove cav-rwm nearby))
+        "All GP surgeries within 5km of 'CF14 4XW' should be related to parent organisation 'RWM'.")))
+
 (deftest postcodes
   (let [{:strs [PCD2]} (clods/fetch-postcode *svc* "CF14 4XW")]
     (is (= PCD2 "CF14 4XW")))

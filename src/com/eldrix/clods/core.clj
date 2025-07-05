@@ -259,7 +259,7 @@
    => false
    ```"
   [^ODS ods org-code]
-  (sql/equivalent-orgs (.-ds ods) org-code))
+  (sql/equivalent-org-codes (.-ds ods) org-code))
 
 (defn all-equivalent-org-codes
   "Returns a set of equivalent organisation codes by looking at the successors, and
@@ -270,7 +270,7 @@
   => true
   ```"
   [^ODS ods org-code]
-  (sql/all-equivalent-orgs (.-ds ods) org-code))
+  (sql/all-equivalent-org-codes (.-ds ods) org-code))
 
 (defn related-org-codes
   "Return a set of organisation codes for 'related' organisations to the
@@ -285,7 +285,7 @@
   (\"VM4A9\" \"RWM4J\" \"VM7WP\" \"RVHQA\")
   ```
 
-  The resulting set can of course be used as a function to determine whether
+  The resulting set can, of course, be used as a function to determine whether
   another organisation is related:
   ```
   ((related-org-codes ods \"RWM\") \"7A4BV\")    ;; University Hospital Wales
@@ -301,7 +301,7 @@
    (related-org-codes ods org-code {}))
   ([^ODS ods org-code {:keys [primary-role]}]
    (with-open [conn (jdbc/get-connection (.-ds ods))]
-     (let [equiv (sql/equivalent-orgs conn org-code)        ;; set of predecessors and successors
+     (let [equiv (sql/equivalent-org-codes conn org-code)        ;; set of predecessors and successors
            result (into equiv
                         (mapcat #(sql/all-child-org-codes conn %)) ;; all child organisations
                         equiv)]
@@ -325,7 +325,7 @@
 
   (time (sql/all-child-org-codes (.-ds ods) "RWM"))
   (time (def org-ids (into #{} (mapcat #(sql/all-child-org-codes (.-ds ods) %))
-                           (sql/equivalent-orgs (.-ds ods) "RWM"))))
+                           (sql/equivalent-org-codes (.-ds ods) "RWM"))))
   (related-org-codes ods "7A4")
   ;; find surgeries within 2k of Llandaff North, in Cardiff
   (with-open [idx (open-index {:f "latest-clods.db" :nhspd-dir "../pc4/data/nhspd-2022-11-10.db"})]
