@@ -14,49 +14,47 @@
 
 (def default-assigning-authority "HSCIC")
 
-(defn add-namespaces [org]
+(defn add-namespaces
+  [{:keys [orgId name active operational orgRecordClass location primaryRole relationships roles successors predecessors]}]
   {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id
-   (get-in org [:orgId :extension])
-
-   :uk.nhs.ord/name           (:name org)
-   :uk.nhs.ord/active         (:active org)
-   :uk.nhs.ord/orgId          {:uk.nhs.ord.orgId/root                   (get-in org [:orgId :root])
-                               :uk.nhs.ord.orgId/extension              (get-in org [:orgId :extension])
-                               :uk.nhs.ord.orgId/assigningAuthorityName (or (get-in org [:orgId :assigningAuthorityName]) default-assigning-authority)}
-   :uk.nhs.ord/operational    {:uk.nhs.ord.operational/start (get-in org [:operational :start])
-                               :uk.nhs.ord.operational/end   (get-in org [:operational :end])}
-   :uk.nhs.ord/orgRecordClass (:orgRecordClass org)
-   :uk.nhs.ord/location       {:uk.nhs.ord.location/address1 (get-in org [:location :address1])
-                               :uk.nhs.ord.location/address2 (get-in org [:location :address2])
-                               :uk.nhs.ord.location/town     (get-in org [:location :town])
-                               :uk.nhs.ord.location/postcode (get-in org [:location :postcode])
-                               :uk.nhs.ord.location/country  (get-in org [:location :country])
-                               :uk.nhs.ord.location/uprn     (get-in org [:location :uprn])
-                               :uk.nhs.ord.location/latlon   (get-in org [:location :latlon])}
-   :uk.nhs.ord/primaryRole    {:uk.nhs.ord.primaryRole/id        (get-in org [:primaryRole :id])
-                               :uk.nhs.ord.primaryRole/active    (get-in org [:primaryRole :active])
-                               :uk.nhs.ord.primaryRole/startDate (get-in org [:primaryRole :startDate])
-                               :uk.nhs.ord.primaryRole/endDate   (get-in org [:primaryRole :endDate])}
+   (:extension orgId)
+   :uk.nhs.ord/name           name
+   :uk.nhs.ord/active         active
+   :uk.nhs.ord/orgId          {:uk.nhs.ord.orgId/root                   (:root orgId)
+                               :uk.nhs.ord.orgId/extension              (:extension orgId)
+                               :uk.nhs.ord.orgId/assigningAuthorityName (or (:assigningAuthorityName orgId) default-assigning-authority)}
+   :uk.nhs.ord/operational    {:uk.nhs.ord.operational/start (:start operational)
+                               :uk.nhs.ord.operational/end   (:end operational)}
+   :uk.nhs.ord/orgRecordClass orgRecordClass
+   :uk.nhs.ord/location       (cond-> {:uk.nhs.ord.location/address1 (:address1 location)
+                                       :uk.nhs.ord.location/address2 (:address2 location)
+                                       :uk.nhs.ord.location/town     (:town location)
+                                       :uk.nhs.ord.location/postcode (:postcode location)
+                                       :uk.nhs.ord.location/country  (:country location)
+                                       :uk.nhs.ord.location/uprn     (:uprn location)
+                                       :uk.nhs.ord.location/latlon   (:latlon location)
+                                       :uk.nhs.ord.location/distance (:distance location)})
+   :uk.nhs.ord/primaryRole    {:uk.nhs.ord.primaryRole/id        (:id primaryRole)
+                               :uk.nhs.ord.primaryRole/active    (:active primaryRole)
+                               :uk.nhs.ord.primaryRole/startDate (:startDate primaryRole)
+                               :uk.nhs.ord.primaryRole/endDate   (:endDate primaryRole)}
    :uk.nhs.ord/roles          (map (fn [role]
                                      {:uk.nhs.ord.role/active    (:active role)
                                       :uk.nhs.ord.role/id        (:id role)
                                       :uk.nhs.ord.role/isPrimary (:isPrimary role)
                                       :uk.nhs.ord.role/startDate (:startDate role)
                                       :uk.nhs.ord.role/endDate   (:endDate role)})
-                                   (:roles org))
+                                   roles)
    :uk.nhs.ord/relationships  (map (fn [rel]
                                      (merge
                                        {:uk.nhs.ord.relationship/id        (:id rel)
                                         :uk.nhs.ord.relationship/startDate (:startDate rel)
                                         :uk.nhs.ord.relationship/endDate   (:endDate rel)
                                         :uk.nhs.ord.relationship/active    (:active rel)}
-                                       (target->identifier (:target rel)))) (:relationships org))
-   :uk.nhs.ord/successors     (->> (:successors org)
-                                   (map :target)
-                                   (map target->identifier))
-   :uk.nhs.ord/predecessors   (->> (:predecessors org)
-                                   (map :target)
-                                   (map target->identifier))})
+                                       (target->identifier (:target rel))))
+                                   relationships)
+   :uk.nhs.ord/successors     (->> successors (map :target) (map target->identifier))
+   :uk.nhs.ord/predecessors   (->> predecessors (map :target) (map target->identifier))})
 
 (pco/defresolver uk-org
   "Resolve a UK organisation using the UK ODS.
@@ -73,7 +71,7 @@
                  :uk.nhs.ord/orgRecordClass
                  {:uk.nhs.ord/location [:uk.nhs.ord.location/address1 :uk.nhs.ord.location/address2 :uk.nhs.ord.location/town
                                         :uk.nhs.ord.location/postcode :uk.nhs.ord.location/country :uk.nhs.ord.location/uprn
-                                        :uk.nhs.ord.location/latlon]}
+                                        :uk.nhs.ord.location/latlon :uk.nhs.ord.location/distance]}
                  {:uk.nhs.ord/successors [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}
                  {:uk.nhs.ord/predecessors [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}
                  {:uk.nhs.ord/relationships [:uk.nhs.ord.relationship/id
@@ -159,7 +157,8 @@
                    :uk.nhs.ord.location/address2
                    :uk.nhs.ord.location/town
                    :uk.nhs.ord.location/postcode
-                   :uk.nhs.ord.location/country]}]
+                   :uk.nhs.ord.location/country
+                   (pco/? :uk.nhs.ord.location/distance)]}]
    ::pco/output [{:org.hl7.fhir.Organization/address
                   [:org.hl7.fhir.Address/use
                    :org.hl7.fhir.Address/type
@@ -169,16 +168,18 @@
                    :org.hl7.fhir.Address/district
                    :org.hl7.fhir.Address/state
                    :org.hl7.fhir.Address/postalCode
-                   :org.hl7.fhir.Address/country]}]}
+                   :org.hl7.fhir.Address/country
+                   :org.hl7.fhir.Address/distance]}]}
   {:org.hl7.fhir.Organization/address
-   (let [{:uk.nhs.ord.location/keys [address1 address2 town country postcode]} location]
+   (let [{:uk.nhs.ord.location/keys [address1 address2 town country postcode distance]} location]
      [{:org.hl7.fhir.Address/use        :org.hl7.fhir.address-use/work
        :org.hl7.fhir.Address/type       :org.hl7.fhir.address-type/both
        :org.hl7.fhir.Address/text       (str/join "\n" (remove str/blank? [address1 address2 town country postcode]))
        :org.hl7.fhir.Address/line       (filterv some? [address1 address2])
        :org.hl7.fhir.Address/city       town
        :org.hl7.fhir.Address/postalCode postcode
-       :org.hl7.fhir.Address/country    country}])})
+       :org.hl7.fhir.Address/country    country
+       :org.hl7.fhir.Address/distance   distance}])})
 
 (pco/defresolver skos-preflabel
   [{:uk.nhs.ord/keys [name]}]
@@ -361,8 +362,9 @@
   (p.eql/process
     registry
     [{'(uk.nhs.ord/search
-         {:n     "castle gate"
-          :roles ["RO177" "RO72"]})
+         {:n             "castle"
+          :roles         ["RO177" "RO72"]
+          :from-location {:postcode "NP25 3NS" :range 5000}})
       [:org.hl7.fhir.Organization/name]}])
   (p.eql/process
     registry

@@ -351,13 +351,15 @@
 
 (defn normalize-org
   "Normalises raw row data from database into a nested organisation structure"
-  [{:keys [org_code org_record_class address1 address2 town county country postcode uprn osnrth1m oseast1m] :as org}]
+  [{:keys [org_code org_record_class address1 address2 town county country postcode uprn osnrth1m oseast1m distance] :as org}]
   (-> org
-      (dissoc :org_code :address1 :address2 :town :county :country :postcode :uprn :osnrth1m :oseast1m)
+      (dissoc :org_code :address1 :address2 :town :county :country :postcode :uprn :osnrth1m :oseast1m :distance)
       (update :active normalize-bool)
       (assoc :orgId {:root hl7-oid-health-and-social-care-organisation-identifier :extension org_code}
              :orgRecordClass (keyword org_record_class)
-             :location {:address1 address1, :address2 address2, :town town :county county :country country :postcode postcode :uprn uprn :osnrth1m osnrth1m :oseast1m oseast1m})))
+             :location (cond-> {:address1 address1, :address2 address2, :town town :county county :country country :postcode postcode :uprn uprn :osnrth1m osnrth1m :oseast1m oseast1m}
+                         distance                           ;; iff there is 'distance' (when geosearching), include it
+                         (assoc :distance distance)))))
 
 (defn extended-org
   "Extends a normalized org to include important relationships including roles,
@@ -383,6 +385,7 @@
     (extended-org conn (normalize-org org))))
 
 (defn random-orgs
+  "Return 'n' random organisations. Only for use in testing against a live database."
   [conn n]
   (map #(extended-org conn (normalize-org %))
        (execute! conn ["select * from organisation ORDER BY RANDOM() LIMIT ?" n])))
