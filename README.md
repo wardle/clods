@@ -81,8 +81,8 @@ convenience, `clods` includes that tooling.
 
 In these examples, we'll use
 
-- /var/local/ods-2021-02.db   for our organisation index
-- /var/local/nhspd-2020-11.db for our postcode index
+- `/var/local/ods-2021-02.db`   for our organisation index
+- `/var/local/nhspd-2020-11.db` for our postcode index
 
 You can choose to use a single file for each and update-in-place, or build a new
 repository at intervals. I prefer read-only, immutable backing data by default,
@@ -92,7 +92,7 @@ We also need to specify a temporary cache for downloaded data.
 
 For these examples, we'll use
 
-- /var/tmp/trud
+- `/var/tmp/trud`
 
 ## 2. Initialise the postcode service
 
