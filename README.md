@@ -2,6 +2,7 @@
 
 [![Scc Count Badge](https://sloc.xyz/github/wardle/clods)](https://github.com/wardle/clods/)
 [![Scc Cocomo Badge](https://sloc.xyz/github/wardle/clods?category=cocomo&avg-wage=100000)](https://github.com/wardle/clods/)
+[![Tests](https://github.com/wardle/clods/actions/workflows/ci.yml/badge.svg)](https://github.com/wardle/clods/actions/workflows/ci.yml)
 [![Clojars Project](https://img.shields.io/clojars/v/com.eldrix/clods.svg)](https://clojars.org/com.eldrix/clods)
 
 A library, a web service and set of tools for UK health and care organisational data.
