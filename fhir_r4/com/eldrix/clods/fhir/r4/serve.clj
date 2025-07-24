@@ -107,7 +107,7 @@
         (System/exit 1))
     (let [[ods-path nhspd-path port-str] args
           port (Integer/parseInt port-str)
-          ods (clods/open-index {:ods-dir ods-path :nhspd-dir nhspd-path})
+          ods (clods/open-index {:f ods-path :nhspd-file nhspd-path})
           server (make-server ods {:port port})]
       (.start server))))
 

@@ -3,11 +3,38 @@
             [clojure.string :as str]
             [clojure.tools.logging.readable :as log]
             [com.eldrix.clods.download :as dl]
-            [com.eldrix.clods.index :as index]
-            [com.eldrix.nhspd.core :as nhspd])
-  (:import (org.apache.lucene.search IndexSearcher)
-           (java.io Closeable)
-           (com.eldrix.nhspd.core NHSPD)))
+            [com.eldrix.clods.sql :as sql]
+            [com.eldrix.nhspd.api :as nhspd]
+            [geocoordinates.core :as geo]
+            [next.jdbc :as jdbc])
+  (:import (java.io Closeable)))
+
+(defn ^:private with-coords-from-postcode
+  "Add OS grid references if not already provided in search parameters derived
+  from the UK postcode when provided."
+  [{:keys [osnrth1m oseast1m postcode] :as from-location} nhspd]
+  (if (or (str/blank? postcode) (and osnrth1m oseast1m))
+    from-location
+    (if-let [{:keys [OSNRTH1M OSEAST1M]} (nhspd/os-grid-reference nhspd postcode)]
+      (assoc from-location :osnrth1m OSNRTH1M :oseast1m OSEAST1M)
+      (throw (ex-info "invalid postcode" from-location)))))
+
+(defn ^:private with-coords-from-wgs84
+  "Add OS grid references if not already in search parameters derived from
+   WGS84 coordinates when provided."
+  [{:keys [osnrth1m oseast1m lat lon] :as from-location}]
+  (if (and (not (and osnrth1m oseast1m)) lat lon)
+    (let [{:keys [easting northing]} (geo/latitude-longitude->easting-northing {:latitude lat :longitude lon} :national-grid)]
+      (assoc from-location :osnrth1m northing :oseast1m easting))
+    from-location))
+
+
+
+;;
+;;
+;; Public API
+;;
+;;
 
 (defn download
   "Download the latest ODS release.
@@ -20,120 +47,135 @@
 (defn install
   "Download and install the latest ODS release using the defined NHSPD service.
   Parameters:
-  - dir       : directory in which to build ODS service
+  - f         : data file; anything coercible via [[clojure.java.io/file]]
   - nhspd     : an NHS postcode directory service
   - api-key   : TRUD api key
   - cache-dir : TRUD cache directory."
-  [^String dir ^NHSPD nhspd api-key cache-dir]
-  (log/info "Installing NHS organisational data index to:" dir)
+  [f nhspd api-key cache-dir]
+  (log/info "Installing NHS organisational data index to:" f)
   (let [ods (download {:api-key api-key :cache-dir cache-dir})]
-    (index/install-index nhspd ods dir))
-  (log/info "Finished creating index at " dir))
+    (sql/create-db {:f f, :dist ods, :nhspd nhspd}))
+  (log/info "Finished creating index at " f))
 
-(defn ^:private merge-coords-from-postcode
-  "Merge lat/lon information using value of :postcode, if supplied.
-  Any existing coordinates will *not* be overwritten by coordinates derived
-  from the postal code."
-  [^NHSPD nhspd {:keys [postcode] :as loc}]
-  (if-not postcode
-    loc
-    (let [[lat lon] (nhspd/fetch-wgs84 nhspd postcode)]
-      (if-not (and lat lon)
-        loc
-        (merge {:lat lat :lon lon} loc)))))
 
-(defn ^:private search
+(defrecord ^:private ODS
+  [ds managed-nhspd? ^Closeable nhspd]
+  Closeable
+  (close [_]
+    (when managed-nhspd?
+      (.close nhspd))))
+
+(s/def ::root string?)
+(s/def ::extension string?)
+(s/def ::orgId (s/keys :req-un [::root ::extension]))
+(s/def ::ods #(instance? ODS %))
+(s/def ::ods-dir string?)
+(s/def ::f some?)
+(s/def ::nhspd some?)
+(s/def ::nhspd-dir string?)
+(s/def ::nhspd-file string?)
+(s/def ::open-index-params
+  (s/keys :req-un [::f (or ::nhspd ::nhspd-dir ::nhspd-file)]
+          :opt-un [::ods-dir]))
+
+(defn open-index
+  "Open a clods index.
+  Parameters are a map containing the following keys:
+   - :f          - ODS index file
+   - :nhspd      - an already opened NHSPD service
+   - :nhspd-file - NHSPD index file
+   - :nhspd-dir  - NHSPD index (only for backwards compatibility)
+
+  Clods depends upon the NHS Postcode Directory, as provided by <a href=\"https://github.com/wardle/nhspd\">nhspd.
+  As such, one of nhspd, nhspd-file or nhspd-dir must be provided"
+  ^Closeable [{:keys [f nhspd nhspd-file nhspd-dir] :as params}]
+  (when-not (s/valid? ::open-index-params params)
+    (throw (ex-info "Cannot open index: invalid parameters" (s/explain-data ::open-index-params params))))
+  (let [ds (sql/get-ds f)                                   ;; TODO: could change to a connection pool if required
+        manifests (sql/manifests ds)
+        managed-nhspd? (not nhspd)                          ;; are we managing nhspd service?
+        nhspd (or nhspd (nhspd/open (or nhspd-file nhspd-dir)))]
+    (log/debug "opening ODS " manifests)
+    (if (empty? manifests)
+      (log/warn "ODS database has no installed distributions"))
+    (->ODS ds managed-nhspd? nhspd)))
+
+(defn valid-service?
+  [x]
+  (instance? ODS x))
+
+(defn fetch-postcode
+  "Fetch raw data from NHSPD.
+  For example:
+  ```
+  (fetch-postcode ods \"cf144xw\")
+  =>
+  {\"CANNET\" \"N95\",\n \"PCDS\" \"CF14 4XW\",\n \"NHSER\" \"W92\",\n \"SCN\" \"N95\",\n \"PSED\" \"62UBFL16\",
+   \"CTRY\" \"W92000004\",\n \"OA01\" \"W00009154\",\n \"HRO\" \"W00\",\n \"OLDHA\" \"QW2\",
+   \"RGN\" \"W99999999\",\n \"OSWARD\" \"W05001280\",\n \"LSOA01\" \"W01001770\",\n \"OSNRTH1M\" 179363, ... }
+  ```"
+  [^ODS ods s]
+  (nhspd/fetch-postcode (.-nhspd ods) s))
+
+(defn fetch-org
+  ([^ODS ods extension]
+   (fetch-org ods nil extension))
+  ([^ODS ods root extension]
+   (when (or (nil? root) (= root sql/hl7-oid-health-and-social-care-organisation-identifier))
+     (sql/fetch-org (.-ds ods) extension))))
+
+(defn random-orgs
+  "Return 'n' random organisations. Useful in testing."
+  [^ODS ods n]
+  (sql/random-orgs (.-ds ods) n))
+
+(defn search-org
   "Search for an organisation
   Parameters :
-  - searcher : A Lucene IndexSearcher
-  - nhspd    : NHS postcode directory service
   - params   : Search parameters; a map containing:
     |- :s             : search for name or address of organisation
     |- :n             : search for name of organisation
     |- :address       : search within address
     |- :fuzzy         : fuzziness factor (0-2)
-    |- :only-active?  : only include active organisations (default, true)
+    |- :active        : only include active organisations (default, true)
     |- :roles         : a string or vector of roles
+    |- :primary-role  : a string or vector of roles
     |- :from-location : a map containing:
     |  |- :postcode : UK postal code, or
     |  |- :lat      : latitude (WGS84)
-    |  |- :lon      : longitude (WGS84), and
+    |  |- :lon      : longitude (WGS84), or
+    |  |- :osnrth1m : OSNRTH1M grid ref,
+    |  |- :oseast1m : OSEAST1M grid ref, and
     |  |- :range    : range in metres (optional)
-    |- :limit      : limit on number of search results."
-  [^IndexSearcher searcher ^NHSPD nhspd params]
-  (index/search searcher
-                (if (get-in params [:from-location :postcode])
-                  (update params :from-location (partial merge-coords-from-postcode nhspd))
-                  params)))
+    |- :limit      : limit on number of search results.
 
-(defprotocol ODS
-  (fetch-org [this root extension] "Fetch an organisation by identifier")
-  (search-org [this params] "Search for an organisation using the parameters specified.")
-  (child-orgs [this params])
-  (all-organizations [this] "Returns a lazy sequence of all organisations")
-  (code-systems [this] "Return all ODS codesystems")
-  (fetch-postcode [this pc] "Return NHSPD data about the specified postcode.")
-  (fetch-wgs84 [this pc] "Returns WGS84 lat/long coordinates about the postcode."))
+    If the specified postcode is invalid, throws an exception."
+  [^ODS ods params]
+  (sql/search (.-ds ods)
+              (-> (merge {:as :ext-orgs} params)            ;; by default, return as 'ext-orgs'
+                  (update :from-location (fn [loc] (-> loc  ;; add geocoordinates when needed/possible
+                                                       (with-coords-from-postcode (.-nhspd ods))
+                                                       (with-coords-from-wgs84)))))))
 
-
-(s/def ::root string?)
-(s/def ::extension string?)
-(s/def ::orgId (s/keys :req-un [::root ::extension]))
-(s/def ::ods #(satisfies? ODS %))
-(s/def ::ods-dir string?)
-(s/def ::nhspd #(instance? NHSPD %))
-(s/def ::nhspd-dir string?)
-(s/def ::open-index-params (s/keys :req-un [::ods-dir (or ::nhspd ::nhspd-dir)]))
-
-(s/fdef open-index
-  :args (s/alt :vec (s/cat :ods-dir string? :nhspd-dir string?)
-               :map (s/keys :req-un [::ods-dir (or ::nhspd ::nhspd-dir)])))
-(defn open-index
-  "Open a clods index.
-  Parameters are a map containing the following keys:
-   - :ods-dir   - directory representing the ODS index
-   - :nhspd     - an already opened NHSPD service
-   - :nhspd-dir - directory containing an NHSPD index
-
-  Clods depends upon the NHS Postcode Directory, as provided by <a href=\"https://github.com/wardle/nhspd\">nhspd.
-  As such, one of nhspd or nhspd-dir must be provided"
-  ^:deprecated ([ods-dir nhspd-dir] (open-index {:ods-dir ods-dir :nhspd-dir nhspd-dir}))
-  ([{:keys [ods-dir ^NHSPD nhspd nhspd-dir] :as params}]
-   (when-not (s/valid? ::open-index-params params)
-     (throw (ex-info "Cannot open index: invalid parameters" (s/explain-data ::open-index-params params))))
-   (let [reader (index/open-index-reader ods-dir)
-         searcher (IndexSearcher. reader)
-         managed-nhspd? (not nhspd)                         ;; are we managing nhspd service?
-         nhspd (or nhspd (nhspd/open-index nhspd-dir))
-         code-systems (index/read-metadata searcher "code-systems")]
-     (reify
-       ODS
-       (fetch-org [_ root extension] (index/fetch-org searcher root extension))
-       (search-org [_ params] (search searcher nhspd params))
-       (child-orgs [_ params] (index/child-relationships searcher params))
-       (all-organizations [_] (index/all-organizations reader))
-       (code-systems [_] code-systems)
-       (fetch-postcode [_ pc] (nhspd/fetch-postcode nhspd pc))
-       (fetch-wgs84 [_ pc] (nhspd/fetch-wgs84 nhspd pc))
-       Closeable
-       (close [_]                                           ;; if the nhspd service was opened by us, close it.
-         (.close reader)
-         (when managed-nhspd? (.close nhspd)))))))
-
+(defn code-systems
+  [ods]
+  (sql/codesystems (.-ds ods)))
 
 (def namespace-ods-organisation "https://fhir.nhs.uk/Id/ods-organization")
 (def namespace-ods-site "https://fhir.nhs.uk/Id/ods-site")
-(def orgRecordClass->namespace {:RC1 namespace-ods-organisation
-                                :RC2 namespace-ods-site})
+
+(def orgRecordClass->namespace
+  {:RC1 namespace-ods-organisation
+   :RC2 namespace-ods-site})
 
 (defn get-role
   "Return the role associated with code specified, e.g. \"RO72\"."
-  [ods role-code]
+  [^ODS ods role-code]
   (get (code-systems ods) ["2.16.840.1.113883.2.1.3.2.4.17.507" role-code]))
 
 (defn get-relationship
   "Return the relationship associated with code specified, e.g. \"RE6\""
-  [ods rel-code]
+  [^ODS ods rel-code]
   (get (code-systems ods) ["2.16.840.1.113883.2.1.3.2.4.17.508" rel-code]))
 
 (def re-org-id #"^((?<root>.*?)\|)?(?<extension>.*?)$")
@@ -161,37 +203,6 @@
   [v]
   (map #(update % :target normalize-id) v))
 
-(defn active-successors
-  "Returns the active successor(s) of the given organisation.
-  If the specified organisation is still active, by default returns a sequence
-  containing only it. If 'self-if-active?' is false, returns nil. "
-  [ods org & {:keys [self-if-active?] :or {self-if-active? true}}]
-  (if (:active org)
-    (when self-if-active? [org])
-    (flatten (->> (:successors org)
-                  (map #(active-successors ods (fetch-org ods nil (get-in % [:target :extension]))))))))
-
-(defn predecessors
-  "Returns a lazy sequence of direct predecessor organisations."
-  [ods org]
-  (->> (:predecessors org)
-       (map #(fetch-org ods (get-in % [:target :root]) (get-in % [:target :extension])))))
-
-(defn all-predecessors
-  "Returns a vector of all predecessor organisations."
-  [ods org]
-  (loop [remaining-orgs (vec (predecessors ods org))
-         result []]
-    (if-not (seq remaining-orgs)
-      result
-      (let [org' (first remaining-orgs)
-            remaining (or (next remaining-orgs) [])]
-        (recur (into remaining (predecessors ods org'))
-               (conj result org'))))))
-
-(comment
-  (all-predecessors idx (fetch-org idx nil "7A4BV")))
-
 (defn org-identifiers
   "Returns a normalised list of organisation identifiers.
   The first will be the 'best' identifier to use for official use.
@@ -208,14 +219,12 @@
    "RE6" 3                                                  ;; is operated by
    "RE4" 4})                                                ;; is commissioned by
 
-
 (defn org-part-of
   "Returns a best-match of what we consider an organisation 'part-of'.
   Returns a tuple of root extension."
   [org]
   (let [rel (->> (:relationships org)
                  (map #(assoc % :priority (get part-of-relationships (:id %))))
-                 (filter :active)
                  (filter :priority)
                  (sort-by :priority)
                  first)]
@@ -236,135 +245,100 @@
           (update :predecessors normalize-targets)
           (update :successors normalize-targets)))))
 
-(s/fdef matching-org-id?
-  :args (s/cat :source ::orgId
-               :target (s/alt :target-org-id ::orgId
-                              :target-extension string?)))
-(defn matching-org-id?
-  "Do the organisational identifiers match?
-  Parameters:
-  - source-org-id   : a map containing ':root' and ':extension' keys
-  - target-org-id   : one of:
-                      - a map containing ':root' and ':extension' keys
-                      - a string representing the extension."
-  [source-org-id target-org-id]
-  (or (and (= (:root source-org-id) (:root target-org-id)) (= (:extension source-org-id) (:extension target-org-id)))
-      (= source-org-id target-org-id)
-      (and (string? target-org-id) (= (:extension source-org-id) (str/upper-case target-org-id)))))
+(defn org-code->all-predecessors
+  [^ODS ods org-code {:keys [as] :or {as :codes} :as opts}]
+  (case as
+    :codes
+    (sql/all-predecessors (.-ds ods) org-code)
+    :orgs
+    (map #(fetch-org ods %) (sql/all-predecessors (.-ds ods) org-code))
+    :ext-orgs
+    (map #(sql/extended-org (.-ds ods) (sql/fetch-org (.-ds ods) %)) (sql/all-predecessors (.-ds ods) org-code))
+    ;; unsupported 'as' option
+    (throw (ex-info "Unsupported return type requested" opts))))
 
-(defn related?
-  "Is the organisation specified related to the target specified?
-  The target should be the organisation, or a parent of that organisation, or
-  have a similar historical relationship.
+(defn equivalent-org-codes
+  "Returns a set of predecessor and successor organisation codes. Set will include
+   the original organisation code. Unlike `all-equivalent-orgs` this will *not* return
+   the same result and will depend on the starting organisation.
+   ```
+   (= (equivalent-orgs conn \" RWM \") (equivalent-orgs conn \"7A4\"))
+   => false
+   ```"
+  [^ODS ods org-code]
+  (sql/equivalent-org-codes (.-ds ods) org-code))
 
-  Parameters:
-  - ods           : ods index
-  - org           : a map representing the organisation, from 'fetch-org'
-  - target        : a map representing the organisation, from 'fetch-org'
-  - rels          : (default, 'all') a set of relationship types, or predicate
-  - historic?     : (default, true) whether to use historic relationships
-
-  For example,
+(defn all-equivalent-org-codes
+  "Returns a set of equivalent organisation codes by looking at the successors, and
+  then returning those and all predecessors. In this way, this returns the same
+  result for any organisation within that set.
   ```
-    (related? ods (fetch-org ods nil \"RWMBV\") (fetch-org ods nil \"7A4\"))
-  ```
-  returns a truthy value, as 'RWMBV' was the old University Hospital of Wales,
-  under a parent organisation, 'RWM', which is now inactive and replaced with
-  '7A4'."
-  [ods org target & {:keys [rels historic?] :or {historic? true} :as opts}]
-  (when org
-    (or (matching-org-id? (:orgId org) (:orgId target))     ;; shortcut if they are the same
-        (let [org-rels (if rels (filter #(rels (:id %)) (:relationships org)) (:relationships org))]
-          (or
-            ;; perhaps one of the relationships match directly?
-            (some #(matching-org-id? (:target %) (:orgId target)) org-rels)
-            ;; or recurse through source organisation relationships if there's not a direct match
-            (some #(related? ods (fetch-org ods (get-in % [:target :root]) (get-in % [:target :extension])) target) org-rels)
-            ;; do a comparison of active successors, if we're using historic relationships and either org is inactive...
-            (and historic? (or (not (:active org)) (not (:active target)))
-                 (let [org-succs (active-successors ods org)
-                       target-succs (active-successors ods target)
-                       test-seq (for [s org-succs t target-succs] [s t])]
-                   (some (fn [[s t]] (related? ods s t :rels rels :historic? false)) test-seq))))))))
+  (= (all-equivalent-orgs conn \"RWM\") (all-equivalent-orgs conn \"7A4\"))
+  => true
+  ```"
+  [^ODS ods org-code]
+  (sql/all-equivalent-org-codes (.-ds ods) org-code))
 
-(defn org->id
-  "Turn an organisation into a tuple of root and extension."
-  [{:keys [orgId]}]
-  (vector (:root orgId) (:extension orgId)))
+(defn related-org-codes
+  "Return a set of organisation codes for 'related' organisations to the
+  specified organisation. This determines related predecessor and successors
+  and transitive child organisations.
 
-(defn equivalent-org-ids
-  "Return a set of all successor and predecessor organisational identifiers.
-  Example:
+  For example, to get a set of all current and historic CAVUHB org ids:
+
   ```
-  (equivalent-org-ids ods {:extension \"7a4bv\"})
+  (take 4 (related-org-codes ods \"7A4\"))
   =>
-  #{[\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"7A4BV\"]
-    [\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"RVGBV\"]
-    [\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"WH2BV\"]
-    [\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"RRBBV\"]
-    [\"2.16.840.1.113883.2.1.3.2.4.18.48\" \"RWMBV\"]}"
-  [ods {:keys [org orgId root extension]}]
-  (let [org (or org (if orgId (fetch-org ods (:root orgId) (:extension orgId)) (fetch-org ods root extension)))
-        orgs (active-successors ods org)                    ;; all successors
-        orgs-id (into #{} (map org->id) orgs)
-        predecessors (mapcat #(all-predecessors ods %) orgs)] ;; get all predecessors of all successors and possibly children
-    (into orgs-id (map org->id) predecessors)))
+  (\"VM4A9\" \"RWM4J\" \"VM7WP\" \"RVHQA\")
+  ```
 
-(defn equivalent-and-child-org-ids
-  "Given a root and extension, returns a set of tuples of root and extensions
-  representing successor and predecessor organisations as well as 'child'
-  organisations.
-  For example, to get all Cardiff and Vale UHB organisational identifiers:
+  The resulting set can, of course, be used as a function to determine whether
+  another organisation is related:
   ```
-  (into #{} (map second) (equivalent-org-ids-and-children ods nil \"7A4\"))
-  =>
-  #{\"RRA\"\n  \"V08122\"\n  \"W00124\"\n  \"7A44A\"\n  \"W97286\"\n  \"W97619\"\n  \"RWM\" ... }
+  ((related-org-codes ods \"RWM\") \"7A4BV\")    ;; University Hospital Wales
+  => \"7A4BV\"
+
+  ((related-org-codes ods \"RWM\") \"7A3B7\")    ;; Princess of Wales Hospital
+  => nil
   ```
-  "
-  [ods root extension]
-  (let [equivalent (equivalent-org-ids ods {:root root :extension extension})
-        children (map org->id (mapcat (fn [[root extension]] (child-orgs ods {:root root :extension extension})) equivalent))]
-    (into equivalent children)))
+  This is currently implemented by executing multiple SQL statements, but could
+  be refactored to perform as a single SQL statement if required and shown to be
+  quicker e.g. using [[search-org]]."
+  ([^ODS ods org-code]
+   (related-org-codes ods org-code {}))
+  ([^ODS ods org-code {:keys [primary-role]}]
+   (with-open [conn (jdbc/get-connection (.-ds ods))]
+     (let [equiv (sql/equivalent-org-codes conn org-code)        ;; set of predecessors and successors
+           result (into equiv
+                        (mapcat #(sql/all-child-org-codes conn %)) ;; all child organisations
+                        equiv)]
+       (cond->> result
+                ;; filter by primary-role if specified
+                primary-role
+                (sql/orgs-with-primary-role conn primary-role))))))
 
 (comment
   (require '[clojure.spec.test.alpha :as stest])
   (stest/instrument)
-  (def ods (open-index {:ods-dir "ods-2024-01-08.db" :nhspd-dir "../pc4/data/nhspd-2022-11-10.db"}))
-  (def ods (open-index {:ods-dir "../pc4/data/ods-2022-01-24.db" :nhspd-dir "../pc4/data/nhspd-2022-11-10.db"}))
-  (active-successors ods (fetch-org ods nil "RWM"))
-  (all-predecessors ods (fetch-org ods nil "7A4BV"))
-  (active-successors ods (fetch-org ods nil "7A4BV"))
-  (fetch-org ods nil "7A4")
-  (sort (map (fn [[r e]] (str e ":" (:name (fetch-org ods r e)))) (equivalent-org-ids-and-children ods nil "7a4")))
-  (= (equivalent-org-ids-and-children ods nil "RWM")
-     (equivalent-org-ids-and-children ods nil "7A4"))
-  (time (let [extensions (into #{} (map second) (equivalent-org-ids ods {:extension "7A4"}))
-              children (map #(get-in % [:orgId :extension]) (mapcat #(child-orgs ods {:extension %}) extensions))]
-          (into extensions children)))
-  (->> (equivalent-org-ids ods {:extension "RWM"})
-       (map second)
-       (map #(fetch-org ods nil %))
-       (mapcat #(child-orgs ods {:org %}))
-       (map :name))
-  (related? ods (fetch-org ods nil "RVFAR") (fetch-org ods nil "7A4"))
-  (related? ods (fetch-org ods nil "RWMBV") (fetch-org ods nil "7A4"))
-  (fetch-org ods nil "RWM")
+  (def ods (open-index {:f "latest-clods.db" :nhspd-dir "../pc4/data/nhspd-2022-11-10.db"}))
+  (time (fetch-org ods "7A4"))
+  (get-role ods "RO177")
+  (org-code->all-predecessors ods "7A4BV" {:as :orgs})
+  (.close ods)
+  (org-part-of (fetch-org ods "7A4BV"))
   (search-org ods {:s "castle gate" :limit 10})
-  (search-org ods {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}})
-  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
-    (fetch-org idx nil "RWMBV"))
+  (map :name (search-org ods {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}}))
 
-  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
-    (doall (search-org idx {:s "vale" :limit 1})))
 
-  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
-    (doall (search-org idx {:s "vale" :limit 2 :from-location {:postcode "CF14 4XW"}})))
-
+  (time (sql/all-child-org-codes (.-ds ods) "RWM"))
+  (time (def org-ids (into #{} (mapcat #(sql/all-child-org-codes (.-ds ods) %))
+                           (sql/equivalent-org-codes (.-ds ods) "RWM"))))
+  (related-org-codes ods "7A4")
   ;; find surgeries within 2k of Llandaff North, in Cardiff
-  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
+  (with-open [idx (open-index {:f "latest-clods.db" :nhspd-dir "../pc4/data/nhspd-2022-11-10.db"})]
     (doall (search-org idx {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}})))
 
-  (with-open [idx (open-index "/var/tmp/ods" "/var/tmp/nhspd")]
-    (doall (search-org idx {:roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}}))))
+  (time (with-open [idx (open-index {:f "latest-clods.db" :nhspd-dir "../pc4/data/nhspd-2022-11-10.db"})]
+          (doall (map :name (search-org idx {:as :orgs :roles ["RO177" "RO72"] :from-location {:postcode "CF14 2HD" :range 5000}}))))))
 
 

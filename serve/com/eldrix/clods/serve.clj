@@ -1,15 +1,15 @@
 (ns com.eldrix.clods.serve
   "Provides a web service for organisational and geographic health and care data."
   (:gen-class)
-  (:require [cheshire.core :as json]
+  (:require [clojure.data.json :as json]
             [clojure.tools.logging.readable :as log]
             [io.pedestal.http :as http]
             [io.pedestal.http.content-negotiation :as conneg]
             [io.pedestal.http.route :as route]
             [io.pedestal.interceptor :as intc]
-            [ring.util.response :as ring-response]
             [com.eldrix.clods.core :as clods])
-  (:import (java.net URLDecoder)))
+  (:import (java.time LocalDate)
+           (java.time.format DateTimeFormatter)))
 
 (defn response [status body & {:as headers}]
   {:status  status
@@ -22,6 +22,13 @@
 (def supported-types ["text/html" "application/edn" "application/json" "text/plain"])
 (def content-neg-intc (conneg/negotiate-content supported-types))
 
+(defn write-local-date [^LocalDate o ^Appendable out _options]
+  (.append out \")
+  (.append out (.format DateTimeFormatter/ISO_DATE o))
+  (.append out \"))
+
+(extend LocalDate json/JSONWriter {:-write write-local-date})
+
 (defn transform-content
   [body content-type]
   (when body
@@ -29,7 +36,7 @@
       "text/html" body
       "text/plain" body
       "application/edn" (pr-str body)
-      "application/json" (json/generate-string body))))
+      "application/json" (json/write-str body))))
 
 (defn accepted-type
   [context]
@@ -119,8 +126,7 @@
   (route/expand-routes
     #{["/ods/v1/search" :get (conj common-interceptors search-org)]
       ["/ods/v1/organisation/:org-id" :get (conj common-interceptors get-org)]
-      ["/ods/v1/postcode/:postcode" :get (conj common-interceptors get-postcode)]
-      }))
+      ["/ods/v1/postcode/:postcode" :get (conj common-interceptors get-postcode)]}))
 
 (defn inject-svc
   "A simple interceptor to inject clods service 'svc' into the context."
@@ -164,7 +170,7 @@
   (if-not (= 3 (count args))
     (println "Incorrect parameter. Usage: clj -M:serve <ods index path> <nhspd index path> <port>")
     (let [[ods-path nhspd-path port] args
-          svc (clods/open-index ods-path nhspd-path)
+          svc (clods/open-index {:f ods-path :nhspd-dir nhspd-path})
           port' (Integer/parseInt port)]
       (log/info "starting NHS ODS server" {:port port' :ods-index ods-path :nhspd-index nhspd-path})
       (start-server svc port'))))
@@ -180,5 +186,4 @@
   (test-request :get "/ods/v1/organisation/rwmbv")
   (test-request :get "/ods/v1/postcode/cf14 4XW")
   (clods/fetch-org ods nil "W93036")
-  (svc/get-general-practitioner st "G3315839")
-  )
+  (svc/get-general-practitioner st "G3315839"))

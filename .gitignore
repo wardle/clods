@@ -9,3 +9,7 @@ clods.iml
 /derby.log
 .lsp/sqlite.db
 *.db
+api-key.txt
+.DS_Store
+/.lsp
+/cache
