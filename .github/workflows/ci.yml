@@ -35,7 +35,7 @@ jobs:
           ${{ runner.os }}-clojure-
     
     - name: Run tests
-      run: clj -M:test
+      run: clojure -M:test
     
     - name: Run lint checks
-      run: clj -M:check
+      run: clojure -M:check
