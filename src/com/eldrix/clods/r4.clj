@@ -25,16 +25,16 @@
      :country    country
      :postalCode postcode}))
 
-(defn make-coding [{:keys [codesystem id displayName]}]
-  {:system  codesystem
+(defn make-coding [{:keys [codeSystem id displayName]}]
+  {:system  codeSystem
    :code    id
    :display displayName})
 
 (defn make-org-type-codeable-concept [ods {:keys [id isPrimary]}]
   (when-let [role (clods/get-role ods id)]
-    (let [coding (make-coding (update role :codesystem #(str "urn:oid:" %)))
+    (let [coding (make-coding (update role :codeSystem #(str "urn:oid:" %)))
           codings (if-not isPrimary [coding]
-                          [coding (make-coding (assoc role :codesystem "http://hl7.org/fhir/ValueSet/organization-type"))])]
+                          [coding (make-coding (assoc role :codeSystem "http://hl7.org/fhir/ValueSet/organization-type"))])]
       {:coding codings})))
 
 (defn make-contact-point

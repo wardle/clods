@@ -56,7 +56,7 @@
          {:id          "RO177"
           :code        "177"
           :displayName "PRESCRIBING COST CENTRE"
-          :codesystem  "2.16.840.1.113883.2.1.3.2.4.17.507"})))
+          :codeSystem  "2.16.840.1.113883.2.1.3.2.4.17.507"})))
 
 (deftest relations
   (let [cav-7a4 (clods/related-org-codes *svc* "7A4")

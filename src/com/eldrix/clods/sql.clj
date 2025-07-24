@@ -290,7 +290,7 @@
   (update m :publicationdate #(some-> % LocalDate/parse)))
 
 (defn normalize-codesystem [{:keys [id code_system display_name]}]
-  {:id id :code (subs id 2) :displayName display_name :codesystem code_system})
+  {:id id :code (subs id 2) :displayName display_name :codeSystem code_system})
 
 (defn normalize-bool [s]
   (= 1 s))
@@ -334,8 +334,8 @@
   [conn]
   (->> (execute! conn ["select * from codesystem"])
        (map normalize-codesystem)
-       (reduce (fn [acc {:keys [id codesystem] :as m}]
-                 (assoc acc [codesystem id] m)) {})))
+       (reduce (fn [acc {:keys [id codeSystem] :as m}]
+                 (assoc acc [codeSystem id] m)) {})))
 
 (defn roles [conn]
   (->> (execute! conn ["select * from codesystem where code_system='2.16.840.1.113883.2.1.3.2.4.17.507'"])

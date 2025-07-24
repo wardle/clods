@@ -101,7 +101,7 @@
     (println (.encodeResourceToString parser o))))
 
 (comment
-  (def ods (clods/open-index "/var/tmp/ods" "/var/tmp/nhspd-nov-2020"))
+  (def ods (clods/open-index {:f "latest-clods.db" :nhspd-file "latest-nhspd.db"}))
 
   ;; this converts all known organisations into FHIR R4...
   (do (doall (map (partial make-organization ods) (clods/all-organizations ods)))
