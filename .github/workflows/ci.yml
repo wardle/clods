@@ -33,7 +33,13 @@ jobs:
         key: ${{ runner.os }}-clojure-${{ hashFiles('**/deps.edn') }}
         restore-keys: |
           ${{ runner.os }}-clojure-
-    
+
+    - name: Create TRUD cache directory
+      run: mkdir trud
+
+    - name: Write out TRUD API key from secrets
+      run: echo ${{ secrets.TRUD_API_KEY }} >> api-key.txt
+
     - name: Run tests
       run: clojure -M:test
     
