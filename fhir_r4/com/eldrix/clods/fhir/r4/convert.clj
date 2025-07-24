@@ -1,5 +1,6 @@
 (ns com.eldrix.clods.fhir.r4.convert
   (:require [com.eldrix.clods.core :as clods]
+            [com.eldrix.clods.core :as clods]
             [clojure.string :as str])
   (:import (org.hl7.fhir.r4.model Address Identifier Organization ContactPoint ContactPoint$ContactPointSystem StringType Identifier$IdentifierUse Reference ResourceType Coding CodeableConcept)
            (com.eldrix.clods.core ODS)
@@ -32,7 +33,7 @@
    "RO116" "govt"                                           ;; government agency
    "RO131" "govt"                                           ;; government department site
    "RO141" "govt"                                           ;; local authority
-   "RO175" "other"})                                          ;; prison
+   "RO175" "other"})                                        ;; prison
 
 
 (defn make-coding [{:keys [codeSystem id displayName]}]
@@ -60,10 +61,11 @@
       (.setValue value))))
 
 (defn make-aliases [ods org]
-  (->> (clods/all-predecessors ods org)
-       (map :name)
-       (into #{})
-       (map #(StringType. %))))
+    (->> (clods/all-equivalent-org-codes ods (get-in org [:orgId :extension]))
+         (map (fn [org-code]
+                (:name (clods/fetch-org ods org-code))))
+         (distinct)
+         (map #(StringType. %))))
 
 (defn make-identifier [{:keys [system value type] :or {type :org.hl7.fhir.identifier-use/official}}]
   (doto (Identifier.)

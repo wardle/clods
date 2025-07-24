@@ -81,12 +81,12 @@ convenience, `clods` includes that tooling.
 
 In these examples, we'll use
 
-- /var/local/ods-2021-02   for our organisation index
-- /var/local/nhspd-2020-11 for our postcode index
+- /var/local/ods-2021-02.db   for our organisation index
+- /var/local/nhspd-2020-11.db for our postcode index
 
-You can choose to use a single directory and update-in-place, or build a new
+You can choose to use a single file for each and update-in-place, or build a new
 repository at intervals. I prefer read-only, immutable backing data by default,
-so favour the latter.
+so favour the latter generally, particularly when generating containers.
 
 We also need to specify a temporary cache for downloaded data.
 
@@ -102,7 +102,7 @@ index you use for that.
 If not, let's get one set-up
 
 ```shell
-$ clj -M:nhspd /var/local/nhspd-2020-11
+$ clj -M:nhspd /var/local/nhspd-2020-11.db
 ```
 
 After a few minutes, the NHS postcode directory index will have been downloaded
@@ -116,7 +116,7 @@ Login to the [NHS Digital TRUD](https://isd.digital.nhs.uk/) and find your API k
 Write that key to a file and link to it from the command-line:
 
 ```shell
-$ clj -M:install --nhspd /var/local/nhspd-2020-11 --api-key /path/to/api-key.txt --cache-dir /var/tmp/trud /var/local/ods-2021-02
+$ clj -M:install --nhspd /var/local/nhspd-2020-11.db --api-key /path/to/api-key.txt --cache-dir /var/tmp/trud /var/local/ods-2021-02.db
 ```
 
 `clods` will proceed to download the latest distribution files from TRUD, or use the existing
@@ -131,7 +131,7 @@ To run as a microservice, you need to include the paths of the both
 an ODS index, and an NHSPD index as well as the port to run on.
 
 ```shell
-$ clj -M:serve /var/local/ods-2021-02  /var/local/nhspd-2020-11 8080
+$ clj -M:serve /var/local/ods-2021-02.db  /var/local/nhspd-2020-11.db 8080
 ```
 
 There are three endpoints:
@@ -281,7 +281,7 @@ $ curl -H "Accept: application/json" 'localhost:8080/ods/v1/search?s=crwys&roles
 # Running a FHIR-compatible server 🔥
 
 ```shell
-$ clj -M:fhir-r4 /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+$ clj -M:fhir-r4 /var/local/ods-2021-02.db /var/local/nhspd-2020-11.db 8080
 ```
 
 Let's try it:
@@ -425,13 +425,13 @@ If you prefer, you can generate jar files which can be run easily at the command
 Build a server uberjar and run it. This provides a simple REST API.
 ```shell
 $ clj -T:build http-server
-$ java -jar target/clods-http-server-v1.0.152.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+$ java -jar target/clods-http-server-v1.0.152.jar /var/local/ods-2021-02.db /var/local/nhspd-2020-11.db 8080
 ```
 
 Build a FHIR server uberjar and run it. This provides a FHIR R4 server.
 ```shell
 $ clj -T:build fhir-r4-server
-$ java -jar target/clods-fhir-r4-server-1.0.152.jar /var/local/ods-2021-02 /var/local/nhspd-2020-11 8080
+$ java -jar target/clods-fhir-r4-server-1.0.152.jar /var/local/ods-2021-02.db /var/local/nhspd-2020-11.db 8080
 ```
 
 You can pass these standalone jar files around; they have no dependencies.

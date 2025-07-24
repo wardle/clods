@@ -7,7 +7,7 @@
     [clojure.set :as set]
     [clojure.string :as str]
     [com.eldrix.clods.download :as dl]
-    [com.eldrix.nhspd.core :as nhspd]
+    [com.eldrix.nhspd.api :as nhspd]
     [honey.sql :as sql]
     [honey.sql.helpers :as h]
     [next.jdbc :as jdbc]
@@ -232,7 +232,7 @@
   (let [{:keys [root extension]} orgId
         {:keys [start end]} operational
         {:keys [address1 address2 town county postcode country uprn]} location
-        {:strs [OSNRTH1M OSEAST1M]} (nhspd/fetch-postcode nhspd postcode)] ;; could derive coords from uprn if we had a UPRN service?
+        {:keys [OSNRTH1M OSEAST1M]} (nhspd/postcode nhspd postcode)] ;; could derive coords from uprn if we had a UPRN service?
     (when (not= hl7-oid-health-and-social-care-organisation-identifier root)
       (throw (ex-info "Organisation does not have standard HL7 OID; implicit assumption that all organisations have this root failed" org)))
     [extension name (clojure.core/name orgRecordClass) active address1 address2 town county country postcode uprn OSNRTH1M OSEAST1M]))
@@ -609,7 +609,7 @@
 (defn q-org-near-postcode
   "Convenience query to search 'd' metres within a postcode."
   [query nhspd postcode d]
-  (if-let [{:strs [OSNRTH1M OSEAST1M]} (nhspd/fetch-postcode nhspd postcode)]
+  (if-let [{:keys [OSNRTH1M OSEAST1M]} (nhspd/postcode nhspd postcode)]
     (q-org-within-distance query OSNRTH1M OSEAST1M d)
     (throw (ex-info "postcode not found" {:postcode postcode}))))
 
@@ -741,7 +741,7 @@
       (throw (ex-info (str "file not found:" f) {})))))
 
 (comment
-  (def nhspd (nhspd/open-index "../pc4/data/nhspd-2022-11-10.db"))
+  (def nhspd (nhspd/open "../pc4/data/nhspd-2022-11-10.db"))
   (def dist (dl/download {:api-key   (str/trim-newline (slurp "../trud/api-key.txt"))
                           :cache-dir "../trud/cache"
                           :nthreads  8 :batch-size 100}))
@@ -795,7 +795,7 @@
   (first orgs)
   (.getName (io/file "../../wibble.txt"))
   (def conn (jdbc/get-connection "jdbc:sqlite:wibble.db"))  ;; a connection cannot be shared between threads
-  (def nhspd (nhspd/open-index "../pc4/data/nhspd-2022-11-10.db"))
+  (def nhspd (nhspd/open "../pc4/data/nhspd-2022-11-10.db"))
   (.close conn)
   (insert-codesystems-sql (vals (:code-systems dist)))
   (insert-orgs-sql nhspd (take 1 orgs))

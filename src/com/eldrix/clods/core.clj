@@ -4,24 +4,23 @@
             [clojure.tools.logging.readable :as log]
             [com.eldrix.clods.download :as dl]
             [com.eldrix.clods.sql :as sql]
-            [com.eldrix.nhspd.core :as nhspd]
+            [com.eldrix.nhspd.api :as nhspd]
             [geocoordinates.core :as geo]
             [next.jdbc :as jdbc])
-  (:import (java.io Closeable)
-           (com.eldrix.nhspd.core NHSPD)))
+  (:import (java.io Closeable)))
 
 (defn ^:private with-coords-from-postcode
   "Add OS grid references if not already provided in search parameters derived
   from the UK postcode when provided."
-  [{:keys [osnrth1m oseast1m postcode] :as from-location} ^NHSPD nhspd]
-  (if (or (nil? postcode) (and osnrth1m oseast1m))
+  [{:keys [osnrth1m oseast1m postcode] :as from-location} nhspd]
+  (if (or (str/blank? postcode) (and osnrth1m oseast1m))
     from-location
-    (if-let [{:strs [OSNRTH1M OSEAST1M]} (nhspd/fetch-postcode nhspd postcode)]
+    (if-let [{:keys [OSNRTH1M OSEAST1M]} (nhspd/os-grid-reference nhspd postcode)]
       (assoc from-location :osnrth1m OSNRTH1M :oseast1m OSEAST1M)
-      from-location)))
+      (throw (ex-info "invalid postcode" from-location)))))
 
 (defn ^:private with-coords-from-wgs84
-  "Add OS grid references if not already in search parameters derived from 
+  "Add OS grid references if not already in search parameters derived from
    WGS84 coordinates when provided."
   [{:keys [osnrth1m oseast1m lat lon] :as from-location}]
   (if (and (not (and osnrth1m oseast1m)) lat lon)
@@ -52,7 +51,7 @@
   - nhspd     : an NHS postcode directory service
   - api-key   : TRUD api key
   - cache-dir : TRUD cache directory."
-  [f ^NHSPD nhspd api-key cache-dir]
+  [f nhspd api-key cache-dir]
   (log/info "Installing NHS organisational data index to:" f)
   (let [ods (download {:api-key api-key :cache-dir cache-dir})]
     (sql/create-db {:f f, :dist ods, :nhspd nhspd}))
@@ -72,28 +71,30 @@
 (s/def ::ods #(instance? ODS %))
 (s/def ::ods-dir string?)
 (s/def ::f some?)
-(s/def ::nhspd #(instance? NHSPD %))
+(s/def ::nhspd some?)
 (s/def ::nhspd-dir string?)
+(s/def ::nhspd-file string?)
 (s/def ::open-index-params
-  (s/keys :req-un [::f (or ::nhspd ::nhspd-dir)]
+  (s/keys :req-un [::f (or ::nhspd ::nhspd-dir ::nhspd-file)]
           :opt-un [::ods-dir]))
 
 (defn open-index
   "Open a clods index.
   Parameters are a map containing the following keys:
-   - :f         - ODS index file
-   - :nhspd     - an already opened NHSPD service
-   - :nhspd-dir - directory containing an NHSPD index
+   - :f          - ODS index file
+   - :nhspd      - an already opened NHSPD service
+   - :nhspd-file - NHSPD index file
+   - :nhspd-dir  - NHSPD index (only for backwards compatibility)
 
   Clods depends upon the NHS Postcode Directory, as provided by <a href=\"https://github.com/wardle/nhspd\">nhspd.
-  As such, one of nhspd or nhspd-dir must be provided"
-  ^Closeable [{:keys [f ^NHSPD nhspd nhspd-dir] :as params}]
+  As such, one of nhspd, nhspd-file or nhspd-dir must be provided"
+  ^Closeable [{:keys [f nhspd nhspd-file nhspd-dir] :as params}]
   (when-not (s/valid? ::open-index-params params)
     (throw (ex-info "Cannot open index: invalid parameters" (s/explain-data ::open-index-params params))))
   (let [ds (sql/get-ds f)                                   ;; TODO: could change to a connection pool if required
         manifests (sql/manifests ds)
         managed-nhspd? (not nhspd)                          ;; are we managing nhspd service?
-        nhspd (or nhspd (nhspd/open-index nhspd-dir))]
+        nhspd (or nhspd (nhspd/open (or nhspd-file nhspd-dir)))]
     (log/debug "opening ODS " manifests)
     (if (empty? manifests)
       (log/warn "ODS database has no installed distributions"))
@@ -146,7 +147,9 @@
     |  |- :osnrth1m : OSNRTH1M grid ref,
     |  |- :oseast1m : OSEAST1M grid ref, and
     |  |- :range    : range in metres (optional)
-    |- :limit      : limit on number of search results."
+    |- :limit      : limit on number of search results.
+
+    If the specified postcode is invalid, throws an exception."
   [^ODS ods params]
   (sql/search (.-ds ods)
               (-> (merge {:as :ext-orgs} params)            ;; by default, return as 'ext-orgs'

@@ -2,11 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v2.0.xxx-alpha] - not yet released
+## [v2.0.xxx] - not yet released
 
 - Migrate from Lucene to SQLite
 - Improvements to import and FHIR r4 representation
 - Significant fixes to graph API
+- Upgrade to latest 'nhspd' which also uses SQLite backing store
  
 ## [v1.2.207] - 2025-01-10
 

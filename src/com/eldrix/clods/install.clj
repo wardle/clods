@@ -2,7 +2,7 @@
   (:require [clojure.tools.cli :as cli]
             [clojure.string :as str]
             [com.eldrix.clods.core :as clods]
-            [com.eldrix.nhspd.core :as nhspd]))
+            [com.eldrix.nhspd.api :as nhspd]))
 
 
 (def cli-options
@@ -33,7 +33,7 @@
     (exit 1 "Missing NHSPD index directory.")
     :else
     (let [trud-api-key (str/trim-newline (slurp api-key))
-          nhspd-svc (when nhspd (nhspd/open-index nhspd))]
+          nhspd-svc (when nhspd (nhspd/open nhspd))]
       (clods/install path nhspd-svc trud-api-key (or cache-dir "/tmp/trud")))))
 
 (defn -main [& args]

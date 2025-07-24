@@ -6,13 +6,13 @@
            org.clojure/data.zip              {:mvn/version "1.1.0"}
            org.clojure/tools.logging         {:mvn/version "1.3.0"}
 
-           com.eldrix/nhspd                  {:mvn/version "1.1.55"}
+           com.eldrix/nhspd                  {:mvn/version "2.0.74"}
            com.eldrix/trud                   {:mvn/version "1.0.118"}
 
            clj-bom/clj-bom                   {:mvn/version "0.1.2"}
-           com.github.seancorfield/honeysql  {:mvn/version "2.7.1310"}
+           com.github.seancorfield/honeysql  {:mvn/version "2.7.1325"}
            com.github.seancorfield/next.jdbc {:mvn/version "1.3.1048"}
-           org.xerial/sqlite-jdbc            {:mvn/version "3.50.2.0"}}
+           org.xerial/sqlite-jdbc            {:mvn/version "3.50.3.0"}}
 
  :aliases {:build
            {:deps       {io.github.clojure/tools.build {:git/tag "v0.10.9" :git/sha "e405aac"}
@@ -47,9 +47,9 @@
 
            :fhir-r4
            {:extra-paths ["fhir_r4"]
-            :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "8.2.0"}
-                          ca.uhn.hapi.fhir/hapi-fhir-server        {:mvn/version "8.2.0"}
-                          ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "8.2.0"}
+            :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "8.2.1"}
+                          ca.uhn.hapi.fhir/hapi-fhir-server        {:mvn/version "8.2.1"}
+                          ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "8.2.1"}
                           ch.qos.logback/logback-classic           {:mvn/version "1.5.18"}
                           io.pedestal/pedestal.jetty               {:mvn/version "0.7.2"}
                           javax.servlet/javax.servlet-api          {:mvn/version "4.0.1"}}
@@ -62,7 +62,8 @@
 
            :test
            {:extra-paths ["test" "test/resources"]
-            :extra-deps  {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+            :extra-deps  {ch.qos.logback/logback-classic {:mvn/version "1.5.18"}
+                          com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                      :sha     "3f288f1f16d167723ad87cc35b1dfee3c1681e10"}
                           com.wsscode/pathom3       {:mvn/version "2025.01.16-alpha"}}
             :main-opts   ["-m" "cognitect.test-runner"]}

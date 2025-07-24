@@ -3,7 +3,7 @@
   (:require
     [clojure.string :as str]
     [com.eldrix.clods.core :as clods]
-    [com.eldrix.nhspd.coords :as coords]
+    [com.eldrix.nhspd.api :as nhspd]
     [com.wsscode.pathom3.connect.operation :as pco]
     [com.wsscode.pathom3.connect.indexes :as pci]
     [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
@@ -244,9 +244,13 @@
 
 (pco/defresolver wgs36
   [{:uk.gov.ons.nhspd/keys [OSEAST1M OSNRTH1M]}]
-  {::pco/output [:urn.ogc.def.crs.EPSG.4326/latitude
+  {::pco/input [:uk.gov.ons.nhspd/OSEAST1M
+                :uk.gov.ons.nhspd/OSNRTH1M]
+   ::pco/output [:urn.ogc.def.crs.EPSG.4326/latitude
                  :urn.ogc.def.crs.EPSG.4326/longitude]}
-  (coords/osgb36->wgs84 OSEAST1M OSNRTH1M))
+  (let [{:keys [WGS84LAT WGS84LNG]} (nhspd/with-wgs84 {:OSNRTH1M OSNRTH1M :OSEAST1M OSEAST1M})]
+    {:urn.ogc.def.crs.EPSG.4326/latitude WGS84LAT
+     :urn.ogc.def.crs.EPSG.4326/longitude WGS84LNG}))
 
 (pco/defmutation search
   "Performs a search. Typical parameters:

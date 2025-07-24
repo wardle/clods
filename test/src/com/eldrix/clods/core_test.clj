@@ -5,7 +5,7 @@
     [clojure.test :refer [deftest is testing use-fixtures]]
     [com.eldrix.clods.core :as clods]
     [com.eldrix.clods.graph :as graph]
-    [com.eldrix.nhspd.core :as nhspd]
+    [com.eldrix.nhspd.api :as nhspd]
     [com.wsscode.pathom3.connect.indexes :as pci]
     [com.wsscode.pathom3.interface.eql :as p.eql]))
 
@@ -16,20 +16,29 @@
   []
   (str/trim-newline (slurp (or (System/getenv "TRUD_API_KEY_FILE") "api-key.txt"))))
 
+(def latest-clods-file "latest-clods.db")
+(def latest-nhspd-file "latest-nhspd.db")
+
 (defn live-test-fixture [f]
-  (if (and (.exists (io/file "latest-clods.db")) (.exists (io/file "nhspd")))
-    (with-open [clods (clods/open-index {:f "latest-clods.db" :nhspd-dir "nhspd"})]
-      (println "WARNING: skipping test of install-release as using existing latest-clods.db. Delete this file if required.")
-      (binding [*svc* clods]
-        (f)))
-    (let [api-key (trud-api-key)]
-      (println "Installing NHSPD and clods releases")
-      (nhspd/write-index "nhspd")
-      (with-open [nhspd (nhspd/open-index "nhspd")]
-        (clods/install "latest-clods.db" nhspd api-key "cache")
-        (with-open [clods (clods/open-index {:f "latest-clods.db" :nhspd nhspd})]
-          (binding [*svc* clods]
-            (f)))))))
+  (let [clods? (.exists (io/file latest-clods-file))
+        nhspd? (.exists (io/file latest-nhspd-file))]
+    (if (and clods? nhspd?)
+      (with-open [clods (clods/open-index {:f latest-clods-file :nhspd-file latest-nhspd-file})]
+        (println "WARNING: skipping test of install-release as using existing files:"
+                 (str/join " " [latest-clods-file latest-nhspd-file])
+                 ". Delete these files if required:")
+        (binding [*svc* clods]
+          (f)))
+      (let [api-key (trud-api-key)]
+        (when clods? (.delete (io/file latest-clods-file)))
+        (when nhspd? (.delete (io/file latest-nhspd-file)))
+        (println "Installing latest clods and nhspd releases for live tests")
+        (nhspd/create-latest latest-nhspd-file {:profile :core})
+        (with-open [nhspd (nhspd/open latest-nhspd-file)]
+          (clods/install latest-clods-file nhspd api-key "cache")
+          (with-open [clods (clods/open-index {:f latest-clods-file :nhspd nhspd})]
+            (binding [*svc* clods]
+              (f))))))))
 
 (use-fixtures :once live-test-fixture)
 
@@ -104,7 +113,7 @@
                  (get-in org# [:uk.nhs.ord/location :uk.nhs.ord.location/postcode]))))))))
 
 (comment
-  (def *svc* (clods/open-index {:f "latest-clods.db" :nhspd-dir "nhspd"}))
+  (def *svc* (clods/open-index {:f latest-clods-file :nhspd-file latest-nhspd-file}))
   (def env (-> (pci/register graph/all-resolvers) (assoc ::graph/svc *svc*)))
   (p.eql/process env
                  [{[:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id "7A4BV"]

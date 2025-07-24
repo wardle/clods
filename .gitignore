@@ -10,3 +10,6 @@ clods.iml
 .lsp/sqlite.db
 *.db
 api-key.txt
+.DS_Store
+/.lsp
+/cache
