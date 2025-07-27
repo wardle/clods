@@ -117,6 +117,15 @@
   [^ODS ods s]
   (nhspd/fetch-postcode (.-nhspd ods) s))
 
+(defn os-grid-reference
+  "Return Ordnance Survey grid reference data for a postcode.
+   Parameters:
+   - s : either a full postcode, or prefix of at least two characters.
+   For a prefix, the average location of all postcodes with that prefix will be
+   returned."
+  [^ODS ods s]
+  (nhspd/os-grid-reference (.-nhspd ods) s))
+
 (defn fetch-org
   ([^ODS ods extension]
    (fetch-org ods nil extension))
