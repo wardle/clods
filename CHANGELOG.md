@@ -2,7 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v2.0.224] - not yet released
+## [v2.0.226] - 2025-07-27
+
+* Add 'os-grid-reference' for any postcode or postcode prefix to top-level API for convenience
+
+## [v2.0.224] - 2025-07-24
 
 - Migrate from Lucene to SQLite
 - Improvements to import and FHIR r4 representation
