@@ -416,6 +416,24 @@
   [conn org-code]
   (into #{} (map :org_code) (jdbc/plan conn (all-successors-sql org-code))))
 
+(defn active-successors-sql
+  [org-code]
+  ["with recursive successors(org_code) as
+  (select successor_org_code from succession where predecessor_org_code=?
+   union all
+   select successor_org_code from succession, successors where succession.predecessor_org_code=successors.org_code)
+  select s.org_code from successors s
+  join organisation o on s.org_code = o.org_code
+  where o.active = 1" org-code])
+
+(defn active-successors
+  "Return a set of organisation codes for active successor organisations only.
+  This recursively traverses the succession chain and filters for currently active
+  organisations. For example, if A → B (inactive) → C (active), this returns #{C}
+  when called with A."
+  [conn org-code]
+  (into #{} (map :org_code) (jdbc/plan conn (active-successors-sql org-code))))
+
 (defn equivalent-org-codes
   "Returns a set of predecessor and successor organisation codes. Set will include
   the original organisation code. Unlike `all-equivalent-orgs` this will *not* return

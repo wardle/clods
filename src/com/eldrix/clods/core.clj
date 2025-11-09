@@ -266,6 +266,32 @@
     ;; unsupported 'as' option
     (throw (ex-info "Unsupported return type requested" opts))))
 
+(defn org-code->active-successors
+  "Return active successor organisations for the given org-code.
+  This recursively traverses the succession chain and returns only currently active
+  successor organisations. For example, if A → B (inactive) → C (active), this
+  returns C when called with A.
+
+  Options:
+  - :as - format of results (:codes, :orgs, :ext-orgs). Defaults to :codes
+
+  Examples:
+  ```
+  (org-code->active-successors ods \"RWM\" {:as :codes})     ;; => #{\"7A4\"}
+  (org-code->active-successors ods \"RWM\" {:as :orgs})      ;; => (org-map ...)
+  (org-code->active-successors ods \"RWM\" {:as :ext-orgs})  ;; => (extended-org-map ...)
+  ```"
+  [^ODS ods org-code {:keys [as] :or {as :codes} :as opts}]
+  (case as
+    :codes
+    (sql/active-successors (.-ds ods) org-code)
+    :orgs
+    (map #(fetch-org ods %) (sql/active-successors (.-ds ods) org-code))
+    :ext-orgs
+    (map #(sql/extended-org (.-ds ods) (sql/fetch-org (.-ds ods) %)) (sql/active-successors (.-ds ods) org-code))
+    ;; unsupported 'as' option
+    (throw (ex-info "Unsupported return type requested" opts))))
+
 (defn equivalent-org-codes
   "Returns a set of predecessor and successor organisation codes. Set will include
    the original organisation code. Unlike `all-equivalent-orgs` this will *not* return
@@ -317,7 +343,7 @@
    (related-org-codes ods org-code {}))
   ([^ODS ods org-code {:keys [primary-role]}]
    (with-open [conn (jdbc/get-connection (.-ds ods))]
-     (let [equiv (sql/equivalent-org-codes conn org-code)        ;; set of predecessors and successors
+     (let [equiv (sql/equivalent-org-codes conn org-code)   ;; set of predecessors and successors
            result (into equiv
                         (mapcat #(sql/all-child-org-codes conn %)) ;; all child organisations
                         equiv)]

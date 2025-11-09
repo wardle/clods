@@ -74,6 +74,31 @@
     (is (= PCD2 "B1   2JF"))
     (is (= PCDS "B1 2JF"))))
 
+(deftest active-successors
+  (let [random-orgs (clods/random-orgs *svc* 100)]
+    (doseq [{:keys [active orgId]} random-orgs
+            :when active
+            :let [active-code (:extension orgId)
+                  equiv-codes (clods/equivalent-org-codes *svc* active-code)
+                  equiv-orgs (map #(clods/fetch-org *svc* nil %) equiv-codes)
+                  inactive-preds (filter #(false? (:active %)) equiv-orgs)]
+            :when (seq inactive-preds)]
+
+      (testing (str "inactive predecessors of " active-code " should have it as active successor")
+        (doseq [{pred-id :orgId} inactive-preds
+                :let [inactive-code (:extension pred-id)
+                      active-succ-codes (clods/org-code->active-successors *svc* inactive-code {:as :codes})]]
+          (is (contains? active-succ-codes active-code)
+              (str "Inactive org " inactive-code " should have active successor " active-code))))
+
+      (testing (str "all active successors are actually active for predecessors of " active-code)
+        (doseq [{pred-id :orgId} inactive-preds
+                :let [inactive-code (:extension pred-id)
+                      active-succ-codes (clods/org-code->active-successors *svc* inactive-code {:as :codes})]]
+          (doseq [succ-code active-succ-codes]
+            (let [{:keys [active]} (clods/fetch-org *svc* nil succ-code)]
+              (is active (str "Successor " succ-code " should be active")))))))))
+
 (deftest graph
   (let [env (-> (pci/register graph/all-resolvers) (assoc ::graph/svc *svc*))
         p (partial p.eql/process env)]
