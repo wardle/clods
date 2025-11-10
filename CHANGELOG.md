@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Not yet released]
+
+- Add `org-codes->active-successors` batch function for finding active successors of multiple organizations
+- Add critical performance indices on succession table (predecessor_org_code, successor_org_code)
+- Batch function eliminates N+1 query problem for multiple organizations (4-10x faster)
+- Combined optimizations provide up to 14x performance improvement
+- Add benchmark tool (clj -M:bench) to validate succession query performance
+
+## [v2.0.228] - 2025-11-09
+
+- Add `org-code->active-successors` for finding active successor organizations
+
 ## [v2.0.226] - 2025-07-27
 
 * Add 'os-grid-reference' for any postcode or postcode prefix to top-level API for convenience

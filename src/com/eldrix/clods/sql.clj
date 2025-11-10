@@ -86,6 +86,8 @@
 (def add-indexes
   ["create index if not exists organisation_idx_coords on organisation(osnrth1m, oseast1m)"
    "create index if not exists organisation_idx_name on organisation(name collate nocase)"
+   "create index if not exists succession_idx_predecessor on succession(predecessor_org_code)"
+   "create index if not exists succession_idx_successor on succession(successor_org_code)"
    "create index if not exists role_idx_org_code on role(org_code)"
    "create index if not exists role_idx_role_id on role(id)"
    "create index if not exists relationship_idx_source_org_code on relationship(source_org_code)"
@@ -433,6 +435,30 @@
   when called with A."
   [conn org-code]
   (into #{} (map :org_code) (jdbc/plan conn (active-successors-sql org-code))))
+
+(defn active-successors-batch-sql
+  [org-codes]
+  (sql/format
+   {:with-recursive [[[:successors {:columns [:org_code]}]
+                     {:union-all [{:select :successor_org_code
+                                   :from :succession
+                                   :where [:in :predecessor_org_code org-codes]}
+                                  {:select :succession.successor_org_code
+                                   :from [:succession :successors]
+                                   :where [:= :succession.predecessor_org_code :successors.org_code]}]}]]
+    :select-distinct :s.org_code
+    :from [[:successors :s]]
+    :join [:organisation [:= :s.org_code :organisation.org_code]]
+    :where [:= :organisation.active 1]}))
+
+(defn active-successors-batch
+  "Return a set of active successor organisation codes for multiple org codes.
+  Returns the union of all active successors across all input organisations.
+  For example, if called with [A B] where A → C (active) and B → D (active),
+  returns #{C D}."
+  [conn org-codes]
+  (when (seq org-codes)
+    (into #{} (map :org_code) (jdbc/plan conn (active-successors-batch-sql org-codes)))))
 
 (defn equivalent-org-codes
   "Returns a set of predecessor and successor organisation codes. Set will include

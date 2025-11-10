@@ -56,7 +56,7 @@
             :main-opts   ["-m" "com.eldrix.clods.fhir.r4.serve"]}
 
            :dev
-           {:extra-paths ["serve" "test" "test/resources"]
+           {:extra-paths ["serve" "test/src" "test/resources"]
             :extra-deps  {ca.uhn.hapi.fhir/hapi-fhir-base          {:mvn/version "8.2.1"}
                           ca.uhn.hapi.fhir/hapi-fhir-server        {:mvn/version "8.2.1"}
                           ca.uhn.hapi.fhir/hapi-fhir-structures-r4 {:mvn/version "8.2.1"}
@@ -64,12 +64,17 @@
                           com.wsscode/pathom3                      {:mvn/version "2025.01.16-alpha"}}}
 
            :test
-           {:extra-paths ["test" "test/resources"]
+           {:extra-paths ["test/src" "test/resources"]
             :extra-deps  {ch.qos.logback/logback-classic {:mvn/version "1.5.18"}
                           com.cognitect/test-runner      {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                           :sha     "3f288f1f16d167723ad87cc35b1dfee3c1681e10"}
                           com.wsscode/pathom3            {:mvn/version "2025.01.16-alpha"}}
             :main-opts   ["-m" "cognitect.test-runner"]}
+
+           :bench
+           {:extra-paths ["test/src"]
+            :extra-deps  {criterium/criterium {:mvn/version "0.4.6"}}
+            :main-opts   ["-m" "com.eldrix.clods.benchmark"]}
 
            :log
            {:extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.5.18"}}}

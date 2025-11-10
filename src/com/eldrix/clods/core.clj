@@ -292,6 +292,29 @@
     ;; unsupported 'as' option
     (throw (ex-info "Unsupported return type requested" opts))))
 
+(defn org-codes->active-successors
+  "Return active successor organisations for multiple org-codes.
+  Returns the union of all active successors across all input organisations.
+
+  Options:
+  - :as - format of results (:codes, :orgs, :ext-orgs). Defaults to :codes
+
+  Examples:
+  ```
+  (org-codes->active-successors ods [\"RWM\" \"ABC\"] {:as :codes})     ;; => #{\"7A4\" \"XYZ\"}
+  (org-codes->active-successors ods [\"RWM\"] {:as :orgs})              ;; => (org-map ...)
+  ```"
+  [^ODS ods org-codes {:keys [as] :or {as :codes} :as opts}]
+  (case as
+    :codes
+    (sql/active-successors-batch (.-ds ods) org-codes)
+    :orgs
+    (map #(fetch-org ods %) (sql/active-successors-batch (.-ds ods) org-codes))
+    :ext-orgs
+    (map #(sql/extended-org (.-ds ods) (sql/fetch-org (.-ds ods) %)) (sql/active-successors-batch (.-ds ods) org-codes))
+    ;; unsupported 'as' option
+    (throw (ex-info "Unsupported return type requested" opts))))
+
 (defn equivalent-org-codes
   "Returns a set of predecessor and successor organisation codes. Set will include
    the original organisation code. Unlike `all-equivalent-orgs` this will *not* return

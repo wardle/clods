@@ -1,4 +1,4 @@
-(ns src.com.eldrix.clods.core-test
+(ns com.eldrix.clods.core-test
   (:require
     [clojure.java.io :as io]
     [clojure.string :as str]
