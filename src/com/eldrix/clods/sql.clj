@@ -386,6 +386,22 @@
   (when-let [org (execute-one! conn ["select * from organisation where org_code=?" extension])]
     (extended-org conn (normalize-org org))))
 
+(defn fetch-orgs
+  "Fetch multiple organizations by their codes.
+  Returns a sequence of organization maps with all related data.
+
+  Given SQLite's fast sequential access, this uses a simple approach:
+  batch fetch the base organization records, then use existing extended-org
+  logic for each one."
+  [conn org-codes]
+  (when (seq org-codes)
+    (let [orgs (jdbc/execute! conn
+                              (sql/format {:select :*
+                                           :from :organisation
+                                           :where [:in :org_code org-codes]})
+                              {:builder-fn rs/as-unqualified-maps})]
+      (map #(extended-org conn (normalize-org %)) orgs))))
+
 (defn random-orgs
   "Return 'n' random organisations. Only for use in testing against a live database."
   [conn n]

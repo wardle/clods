@@ -66,8 +66,30 @@
       (crit/quick-bench
        (clods/org-codes->active-successors ods org-codes {:as :codes})))))
 
+(defn benchmark-fetch
+  "Benchmark fetching organization data for single vs multiple organizations."
+  []
+  (println "\n=== Fetch Organization Benchmarks ===\n")
+  (with-open [ods (clods/open-index {:f db-file :nhspd-file nhspd-file})]
+    (let [org-codes (take 20 (map #(get-in % [:orgId :extension])
+                                  (clods/random-orgs ods 100)))]
+      (println "Testing with" (count org-codes) "random organizations\n")
+
+      (println "Single organization fetch:")
+      (crit/quick-bench
+       (clods/fetch-org ods (first org-codes)))
+
+      (println "\nN+1 approach (map fetch-org over 20 orgs):")
+      (crit/quick-bench
+       (doall (map #(clods/fetch-org ods %) org-codes)))
+
+      (println "\nBatch approach (fetch-orgs):")
+      (crit/quick-bench
+       (doall (clods/fetch-orgs ods org-codes))))))
+
 (defn -main [& _args]
   (println "=== Organizational Succession Query Benchmarks ===")
   (benchmark-single)
   (benchmark-batch)
+  (benchmark-fetch)
   (println "\n=== Benchmarks Complete ==="))

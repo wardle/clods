@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Not yet released]
 
+- Add `fetch-orgs` batch function for fetching multiple organizations efficiently (~20% faster than N+1)
+
+## [v2.0.229] - 2025-11-10
+
 - Add `org-codes->active-successors` batch function for finding active successors of multiple organizations
 - Add critical performance indices on succession table (predecessor_org_code, successor_org_code)
 - Batch function eliminates N+1 query problem for multiple organizations (4-10x faster)

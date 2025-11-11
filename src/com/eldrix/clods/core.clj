@@ -133,6 +133,16 @@
    (when (or (nil? root) (= root sql/hl7-oid-health-and-social-care-organisation-identifier))
      (sql/fetch-org (.-ds ods) extension))))
 
+(defn fetch-orgs
+  "Fetch multiple organizations by their codes.
+  Returns a sequence of organization maps with all related data.
+
+  This batches the initial organization fetch, then uses the standard
+  extended-org logic for each. Given SQLite's fast sequential access,
+  this simple approach is sufficient."
+  [^ODS ods org-codes]
+  (sql/fetch-orgs (.-ds ods) org-codes))
+
 (defn random-orgs
   "Return 'n' random organisations. Useful in testing."
   [^ODS ods n]
