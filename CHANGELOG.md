@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Not yet released]
 
-- Add `fetch-orgs` batch function for fetching multiple organizations efficiently (~20% faster than N+1)
+- Add `fetch-orgs` batch function for fetching multiple organizations efficiently
+- Optimize batch functions to reuse database connections, eliminating connection open/close overhead
+- Performance improvements: fetch-orgs now 9.3x faster than N+1 approach (17.5ms → 1.88ms for 20 orgs)
 
 ## [v2.0.229] - 2025-11-10
 

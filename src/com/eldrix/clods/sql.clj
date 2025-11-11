@@ -388,11 +388,7 @@
 
 (defn fetch-orgs
   "Fetch multiple organizations by their codes.
-  Returns a sequence of organization maps with all related data.
-
-  Given SQLite's fast sequential access, this uses a simple approach:
-  batch fetch the base organization records, then use existing extended-org
-  logic for each one."
+  Returns a sequence of organization maps with all related data."
   [conn org-codes]
   (when (seq org-codes)
     (let [orgs (jdbc/execute! conn

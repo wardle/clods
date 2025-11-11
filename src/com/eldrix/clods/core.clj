@@ -96,7 +96,7 @@
         managed-nhspd? (not nhspd)                          ;; are we managing nhspd service?
         nhspd (or nhspd (nhspd/open (or nhspd-file nhspd-dir)))]
     (log/debug "opening ODS " manifests)
-    (if (empty? manifests)
+    (when (empty? manifests)
       (log/warn "ODS database has no installed distributions"))
     (->ODS ds managed-nhspd? nhspd)))
 
@@ -138,10 +138,11 @@
   Returns a sequence of organization maps with all related data.
 
   This batches the initial organization fetch, then uses the standard
-  extended-org logic for each. Given SQLite's fast sequential access,
-  this simple approach is sufficient."
+  extended-org logic for each. Uses a single database connection for all
+  queries to eliminate connection open/close overhead."
   [^ODS ods org-codes]
-  (sql/fetch-orgs (.-ds ods) org-codes))
+  (with-open [conn (jdbc/get-connection (.-ds ods))]
+    (doall (sql/fetch-orgs conn org-codes))))
 
 (defn random-orgs
   "Return 'n' random organisations. Useful in testing."
@@ -319,9 +320,11 @@
     :codes
     (sql/active-successors-batch (.-ds ods) org-codes)
     :orgs
-    (map #(fetch-org ods %) (sql/active-successors-batch (.-ds ods) org-codes))
+    (with-open [conn (jdbc/get-connection (.-ds ods))]
+      (doall (map #(sql/fetch-org conn %) (sql/active-successors-batch conn org-codes))))
     :ext-orgs
-    (map #(sql/extended-org (.-ds ods) (sql/fetch-org (.-ds ods) %)) (sql/active-successors-batch (.-ds ods) org-codes))
+    (with-open [conn (jdbc/get-connection (.-ds ods))]
+      (doall (map #(sql/extended-org conn (sql/fetch-org conn %)) (sql/active-successors-batch conn org-codes))))
     ;; unsupported 'as' option
     (throw (ex-info "Unsupported return type requested" opts))))
 
