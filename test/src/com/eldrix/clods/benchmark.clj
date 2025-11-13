@@ -4,7 +4,8 @@
   Run with: clj -M:bench
 
   Benchmarks active-successors performance with and without batch mode,
-  demonstrating the N+1 problem and validating index performance."
+  demonstrating the N+1 problem and validating index performance.
+  Also benchmarks connection pooling benefits."
   (:require [criterium.core :as crit]
             [com.eldrix.clods.core :as clods]))
 
@@ -87,9 +88,43 @@
       (crit/quick-bench
        (doall (clods/fetch-orgs ods org-codes))))))
 
+(defn benchmark-pooling
+  "Benchmark connection pooling benefits for N+1 queries.
+
+  Tests whether using a connection pool helps with N+1 problems when
+  making many sequential database queries (like fetching multiple organizations
+  one at a time vs using batch functions)."
+  []
+  (println "\n=== Connection Pooling Benchmarks ===\n")
+  (let [org-codes (with-open [ods (clods/open-index {:f db-file :nhspd-file nhspd-file})]
+                    (take 50 (map #(get-in % [:orgId :extension])
+                                  (clods/random-orgs ods 100))))]
+    (println "Testing with" (count org-codes) "random organizations\n")
+
+    (println "Without pooling - N+1 fetch:")
+    (with-open [ods (clods/open-index {:f db-file :nhspd-file nhspd-file})]
+      (crit/quick-bench
+       (doall (map #(clods/fetch-org ods %) org-codes))))
+
+    (println "\nWith pooling (max 10 connections) - N+1 fetch:")
+    (with-open [ods (clods/open-index {:f db-file :nhspd-file nhspd-file :pool {:maximumPoolSize 10}})]
+      (crit/quick-bench
+       (doall (map #(clods/fetch-org ods %) org-codes))))
+
+    (println "\nWith pooling (max 5 connections) - N+1 fetch:")
+    (with-open [ods (clods/open-index {:f db-file :nhspd-file nhspd-file :pool {:maximumPoolSize 5}})]
+      (crit/quick-bench
+       (doall (map #(clods/fetch-org ods %) org-codes))))
+
+    (println "\nBatch approach (baseline - should be fastest):")
+    (with-open [ods (clods/open-index {:f db-file :nhspd-file nhspd-file})]
+      (crit/quick-bench
+       (doall (clods/fetch-orgs ods org-codes))))))
+
 (defn -main [& _args]
   (println "=== Organizational Succession Query Benchmarks ===")
   (benchmark-single)
   (benchmark-batch)
   (benchmark-fetch)
+  (benchmark-pooling)
   (println "\n=== Benchmarks Complete ==="))

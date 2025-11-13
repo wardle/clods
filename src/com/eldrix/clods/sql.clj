@@ -11,10 +11,11 @@
     [honey.sql :as sql]
     [honey.sql.helpers :as h]
     [next.jdbc :as jdbc]
-    [next.jdbc.connection]
+    [next.jdbc.connection :as conn]
     [next.jdbc.date-time]
     [next.jdbc.result-set :as rs])
   (:import
+    (com.zaxxer.hikari HikariDataSource)
     (java.time Instant LocalDate LocalTime ZoneOffset)))
 
 (set! *warn-on-reflection* true)
@@ -789,12 +790,51 @@
         (optimize! ds))
       (throw (ex-info (str "file not found:" f) {})))))
 
-(defn get-ds
-  [f]
+(defn close-ds
+  "Close a datasource if it implements AutoCloseable."
+  [ds]
+  (when (instance? java.lang.AutoCloseable ds)
+    (.close ^java.lang.AutoCloseable ds)))
+
+(defn open-ds
+  "Open a datasource for the given database file.
+
+  Parameters (as options map):
+  - :f    : path to the SQLite database file (required)
+  - :pool : if true, creates a connection pool with default settings
+            if a map, creates a connection pool with the specified HikariCP options
+            if false/nil, creates a simple datasource without pooling
+
+  HikariCP options when :pool is a map:
+  - :maximumPoolSize    : maximum number of connections (default: 10)
+  - :minimumIdle        : minimum number of idle connections (default: same as maximum)
+  - :connectionTimeout  : timeout in milliseconds (default: 30000)
+  - :idleTimeout        : idle timeout in milliseconds (default: 600000)
+  - :maxLifetime        : max lifetime in milliseconds (default: 1800000)
+  - :poolName           : name of the connection pool
+
+  Examples:
+  ```
+  (open-ds {:f \"data.db\"})                                    ; simple datasource
+  (open-ds {:f \"data.db\" :pool true})                         ; pooled with defaults
+  (open-ds {:f \"data.db\" :pool {:maximumPoolSize 5}})        ; pooled with options
+  ```
+
+  Note: When using a pool, close it when done using with-open:
+  ```
+  (with-open [ds (open-ds {:f \"data.db\" :pool true})]
+    ;; use ds
+    )
+  ```"
+  [{:keys [f pool]}]
   (let [f' (io/file f)]
-    (if (.exists f')
-      (jdbc/get-datasource {:dbtype "sqlite" :dbname (.getCanonicalPath f')})
-      (throw (ex-info (str "file not found:" f) {})))))
+    (when-not (.exists f')
+      (throw (ex-info (str "file not found:" f) {})))
+    (if pool
+      (conn/->pool HikariDataSource
+                   (assoc (if (map? pool) pool {})
+                          :jdbcUrl (str "jdbc:sqlite:" (.getCanonicalPath f'))))
+      (jdbc/get-datasource {:dbtype "sqlite" :dbname (.getCanonicalPath f')}))))
 
 (comment
   (def nhspd (nhspd/open "../pc4/data/nhspd-2022-11-10.db"))
@@ -809,7 +849,12 @@
   (make-search-query nil
                      {:as            :ext-orgs :child-of {:org-code "7A4" :rel-type-id "RE6"}
                       :from-location {:oseast1m 317268 :osnrth1m 180777 :range 5000}})
-  (def conn (get-ds "wibble3.db"))
+  (def conn (open-ds {:f "wibble3.db"}))
+  ;; with connection pooling:
+  (def pooled-conn (open-ds {:f "wibble3.db" :pool true}))
+  (def pooled-conn (open-ds {:f "wibble3.db" :pool {:maximumPoolSize 5}}))
+  ;; remember to close pooled connections:
+  (close-ds pooled-conn)
 
   (get (codesystems conn) "2.16.840.1.113883.2.1.3.2.4.17.508")
 
