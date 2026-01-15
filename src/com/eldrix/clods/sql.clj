@@ -405,6 +405,30 @@
   (map #(extended-org conn (normalize-org %))
        (execute! conn ["select * from organisation ORDER BY RANDOM() LIMIT ?" n])))
 
+(defn stream-all-orgs
+  "Stream all organisations by reducing over them with function `rf`.
+  Uses `jdbc/plan` for lazy iteration without materializing all results.
+
+  The reducing function receives the accumulator and an extended organisation.
+  Use `reduced` to terminate early.
+
+  The caller is responsible for connection management:
+  ```
+  (with-open [conn (jdbc/get-connection ds)]
+    (stream-all-orgs conn
+      (fn [acc org]
+        (println (:name org))
+        (if (some-condition? org)
+          (reduced acc)  ; early termination
+          acc))
+      nil))
+  ```"
+  [conn rf init]
+  (reduce (fn [acc row]
+            (rf acc (extended-org conn (normalize-org row))))
+          init
+          (jdbc/plan conn ["SELECT * FROM organisation"])))
+
 (defn all-predecessors-sql
   [org-code]
   ["with recursive predecessors(org_code) as

@@ -157,6 +157,27 @@
   [^ODS ods n]
   (sql/random-orgs (.-ds ods) n))
 
+(defn stream-all-orgs
+  "Stream all organisations by reducing over them with function `rf`.
+  Uses lazy iteration without materializing all results in memory.
+
+  The reducing function receives the accumulator and an extended organisation.
+  Use `reduced` to terminate early.
+
+  Example:
+  ```
+  (stream-all-orgs ods
+    (fn [acc org]
+      (println (:name org))
+      (if (some-condition? org)
+        (reduced acc)
+        (conj acc org)))
+    [])
+  ```"
+  [^ODS ods rf init]
+  (with-open [conn (jdbc/get-connection (.-ds ods))]
+    (sql/stream-all-orgs conn rf init)))
+
 (defn search-org
   "Search for an organisation
   Parameters :
