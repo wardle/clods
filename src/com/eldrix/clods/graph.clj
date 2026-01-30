@@ -142,6 +142,13 @@
   [{:uk.nhs.ord/keys [active]}]
   {:org.hl7.fhir.Organization/active active})
 
+(pco/defresolver uk-org->fhir-telecom
+  [{:uk.nhs.ord/keys [name]}]
+  {::pco/output [{:org.hl7.fhir.Organization/telecom
+                  [:org.hl7.fhir.ContactPoint/system
+                   :org.hl7.fhir.ContactPoint/value]}]}
+  {:org.hl7.fhir.Organization/telecom nil})
+
 (pco/defresolver fhir-uk-org->uk-ord
   [{:uk.nhs.fhir.Id/keys [ods-organization]}]
   {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id ods-organization})
@@ -282,6 +289,7 @@
    uk-org->fhir-org-identifiers
    uk-org->fhir-org-name
    uk-org->fhir-active
+   uk-org->fhir-telecom
    fhir-uk-org->uk-ord
    fhir-uk-org-site->uk-ord
    uk-org->fhir-address
