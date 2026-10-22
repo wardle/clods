@@ -18,7 +18,7 @@ answer questions about the 'who', 'what', 'when', 'how' and 'why' of health and 
 
 This software provides both a library and web service. As a library, it can easily be embedded into a larger
 application. As a microservice, it can easily be embedded into a suite of foundational platform services.
-It provides both a plain REST API as well as a HL7 FHIR API (r4).
+It provides both a plain REST API as well as a HL7 FHIR API (r4). You can also simply access the underlying SQLite database.
 
 You can obtain general practitioner information for a specific GP surgery using [ods-weekly](https://github.com/wardle/ods-weekly).
 
