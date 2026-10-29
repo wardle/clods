@@ -99,6 +99,22 @@
             (let [{:keys [active]} (clods/fetch-org *svc* nil succ-code)]
               (is active (str "Successor " succ-code " should be active")))))))))
 
+(deftest pct-org
+  (let [env (-> (pci/register graph/all-resolvers) (assoc ::graph/svc *svc*))
+        pct-org (fn [pct ctry]
+                  (:uk.gov.ons.nhspd/PCT_ORG
+                    (p.eql/process env {:uk.gov.ons.nhspd/PCT pct :uk.gov.ons.nhspd/CTRY ctry}
+                                   [{:uk.gov.ons.nhspd/PCT_ORG [:uk.nhs.ord/name]}])))]
+    (is (= {:uk.nhs.ord/name "CARDIFF & VALE UNIVERSITY LHB"} (pct-org "7A4" "W92000004")))
+    (is (= {:uk.nhs.ord/name "SOUTH BIRMINGHAM PCT"} (pct-org "5M1" "E92000001")))
+    (testing "PCT codes that are not ODS codes"
+      (is (nil? (pct-org "012" "S92000003")) "a Scottish code that collides with a Welsh council's ODS code")
+      (is (nil? (pct-org "ZC3" "N92000002")))
+      (is (nil? (pct-org "X98" "L93000001"))))
+    (testing "no organisation in ODS"
+      (is (nil? (pct-org "" "E92000001")))
+      (is (nil? (pct-org "QQQ" "E92000001"))))))
+
 (deftest graph
   (let [env (-> (pci/register graph/all-resolvers) (assoc ::graph/svc *svc*))
         p (partial p.eql/process env)]

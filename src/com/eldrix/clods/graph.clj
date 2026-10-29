@@ -199,6 +199,7 @@
                  :uk.gov.ons.nhspd/LSOA01
                  :uk.gov.ons.nhspd/LSOA11
                  :uk.gov.ons.nhspd/PCT
+                 :uk.gov.ons.nhspd/CTRY
                  :uk.gov.ons.nhspd/OSNRTH1M
                  :uk.gov.ons.nhspd/OSEAST1M]}
   (when-let [pc (clods/fetch-postcode svc PCDS)]
@@ -207,6 +208,7 @@
      :uk.gov.ons.nhspd/LSOA01   (get pc "LSOA01")
      :uk.gov.ons.nhspd/LSOA11   (get pc "LSOA11")
      :uk.gov.ons.nhspd/PCT      (get pc "PCT")
+     :uk.gov.ons.nhspd/CTRY     (get pc "CTRY")
      :uk.gov.ons.nhspd/OSNRTH1M (get pc "OSNRTH1M")
      :uk.gov.ons.nhspd/OSEAST1M (get pc "OSEAST1M")}))
 
@@ -221,9 +223,14 @@
   {:uk.gov.ons.nhspd/LSOA-2001 {:uk.gov.ons/lsoa LSOA01}})
 
 (pco/defresolver nhspd-pct-org
-  [{:uk.gov.ons.nhspd/keys [PCT]}]
+  "Resolve the organisation for the postcode's PCT, or nil. NHSPD's PCT is an
+  ODS code only in England, Wales and the Isle of Man; elsewhere it holds each
+  country's own codes, some of which collide with unrelated ODS organisations."
+  [{::keys [svc]} {:uk.gov.ons.nhspd/keys [PCT CTRY]}]
   {::pco/output [{:uk.gov.ons.nhspd/PCT_ORG [:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id]}]}
-  {:uk.gov.ons.nhspd/PCT_ORG {:urn:oid:2.16.840.1.113883.2.1.3.2.4.18.48/id PCT}})
+  {:uk.gov.ons.nhspd/PCT_ORG
+   (when (and (#{"E92000001" "W92000004" "M83000003"} CTRY) (not (str/blank? PCT)))
+     (some-> (clods/fetch-org svc nil PCT) add-namespaces))})
 
 (pco/defresolver org-primary-role-type-resolver
   [{::keys [svc]} {:uk.nhs.ord.primaryRole/keys [id]}]
