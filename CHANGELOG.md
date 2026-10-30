@@ -2,9 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Not yet released]
+## [v2.0.237] - 2026-10-30
 
 - Fix `:uk.gov.ons.nhspd/PCT_ORG`: nil outside England, Wales and the Isle of Man, where NHSPD's PCT is not an ODS code, and nil when ODS has no such organisation; `:uk.gov.ons.nhspd/CTRY` is now resolved from a postcode
+- Breaking: `:uk.gov.ons.nhspd/PCT_ORG` now requires `:uk.gov.ons.nhspd/CTRY` as well as `:uk.gov.ons.nhspd/PCT`, so needs an NHSPD index with the CTRY column (as in the default profile); without a sub-query it returns the full organisation rather than only its identifier
+
+## [v2.0.234] - 2026-01-30
+
+- Add `uk-org->fhir-telecom` resolver for `:org.hl7.fhir.Organization/telecom` (placeholder; returns nil)
+
+## [v2.0.233] - 2026-01-15
+
+- Add `stream-all-orgs` for lazy iteration over all organisations using a reducing function
+
+## [v2.0.232] - 2025-11-13
+
+- Add optional connection pooling using HikariCP, via `:pool` in `open-index`
+
+## [v2.0.231] - 2025-11-11
+
 - Add `fetch-orgs` batch function for fetching multiple organizations efficiently
 - Optimize batch functions to reuse database connections, eliminating connection open/close overhead
 - Performance improvements: fetch-orgs now 9.3x faster than N+1 approach (17.5ms → 1.88ms for 20 orgs)
